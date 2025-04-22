@@ -127,7 +127,8 @@ system("plink --bfile Refuge_refiltered_uniqueID --extract Refuge_isolatetest_LD
 ####thinning####
 #--bp-space thins data by spacing out snps by 1000bps apart
 system("plink --bfile Wild_roh_filter --chr-set 18 --allow-extra-chr --bp-space 1000 --make-bed --out wild_roh_thin")
-
+#export as vcf
+system("plink2 --bfile wild_roh_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out wild_thinned_roh")
 #########################################################
 #Data Analysis
 ####Data exploration and quality checks####
@@ -519,6 +520,48 @@ system("plink --bfile zoo_roh_filter --allow-extra-chr --chr-set 18 --homozyg --
 zoo_saremi_results <- read.table("zoo_roh_saremi.hom.indiv", header = T)
 
 
+####Visualizing ROH -- average het and manhatten plots -- not working :(####
+#install and library package
+install.packages("WindowScanR")
+install.packages("data.table")
+library(WindowScanR)
+library(vcfR)
+library(data.table)
+library(dplyr)
+#load data for the package
+wild_thin_roh <- read.vcfR("wild_thinned_roh.vcf.gz")
+cat("Number of variants:", nrow(wild_thin_roh@fix), "\n")
+cat("Number of samples:", ncol(wild_thin_roh@gt) - 1, "\n") # -1 for FORMAT column
+cat("First few samples:", colnames(wild_thin_roh@gt)[2:min(6, ncol(wild_thin_roh@gt))], "\n")
+#extract genotypes from vcf
+# To process all samples in the VCF file
+sample_indices <- 2:ncol(wild_thin_roh@gt)  # Skip FORMAT column
+sample_names <- colnames(wild_thin_roh@gt)[sample_indices]
+# Create an empty list to store results for each sample
+all_results <- list()
+for (i in 1:length(sample_indices)) {
+  # Extract genotypes for this sample
+  sample_gt <- extract.gt(wild_thin_roh, element = "GT")[, i]}
+# Identify heterozygous sites
+is_het <- grepl("[0-9]/[0-9]|[0-9]\\|[0-9]", sample_gt) & 
+  !grepl("^(.)\\1$|^(.)\\|(\\2)$|^(.)/(\\4)$", sample_gt)
+# Create data frame
+het_data <- data.frame(
+  chrom = wild_thin_roh@fix[, "CHROM"],
+  pos = as.numeric(wild_thin_roh@fix[, "POS"]),
+  value = as.numeric(is_het)
+)
+# Run sliding window analysis
+sample_results <- windowscan(
+  x = het_data,
+  window_size = window_size,
+  step_size = step_size,
+  FUN = function(x) mean(x, na.rm = TRUE),
+  na.rm = TRUE
+)
+
+
+
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
 install.packages("adegenet")
@@ -556,3 +599,4 @@ wild_genlight
 
 ####finding clusters####
 zoo_clust <-find.clusters(zoo_genlight, max.n.clust = 40)
+
