@@ -210,16 +210,6 @@ zoo.king.matrix <- zoo.king.matrix %>%
 #make csv from the .kin0 file
 write.csv(zoo.king.matrix, "zoo_pairwise_kinship_refiltered.csv")
 
-#heat map of kinship for zoo individuals -- gradient
-library(reshape2)
-melted_kin_zoo <- melt(zoo.king.matrix, measure.vars = "KINSHIP", variable.name = "KINSHIP")
-head(melted_kin_zoo)
-ggplot(data = melted_kin_zoo, aes(x=IID1, y=IID2, fill = value)) +
-  geom_tile(color="white") +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white",
-                       midpoint = 0, limit = c(-0.4, 0.3), space = "Lab",
-                       name = "Kinship") +
-  theme_minimal()
 #heat map of kinship for zoo individuals -- binned
 ggplot(data = melted_kin_zoo, aes(x=IID1, y=IID2, fill = value)) +
   geom_tile(color="white") +
@@ -247,15 +237,6 @@ king.wild.matrix <- king.wild.matrix %>%
 #make csv from the .kin0 file
 write.csv(king.wild.matrix, "wild_pairwise_kinship_refiltered.csv")
 
-#heatmap for kinship of wild individuals -- gradient
-melted_kin_wild <- melt(king.wild.matrix, measure.vars = "KINSHIP", variable.name = "KINSHIP")
-head(melted_kin_wild)
-ggplot(data = melted_kin_wild, aes(x=IID1, y=IID2, fill = value)) +
-  geom_tile(color="white") +
-  scale_fill_gradient2(low = "blue", high = "red", mid = "white",
-                      midpoint = 0, limit = c(-0.4, 0.3), space = "Lab",
-                      name = "Kinship") +
-  theme_minimal()
 #heat map of kinship for wild individuals -- binned
 ggplot(data = melted_kin_wild, aes(x=IID1, y=IID2, fill = value)) +
   geom_tile(color="white") +
@@ -501,49 +482,6 @@ inbreeding_table_re <- data.frame(
 write.csv(inbreeding_table_re, "Refuge_Individual_Inbreeding.csv", row.names = FALSE)
 
 
-####ROH -- not working####
-##zoo -- all defaults in plink
-system("plink --bfile Zoo_LDpruned_0.5_RF --allow-extra-chr --chr-set 18 --homozyg --out zoo_roh_base")
-zoo_base_roh_results <- read.table("zoo_roh_base.hom.indiv", header = T)
-    #located 2 roh in 2 individuals
-##zoo --less strigent search parameters, allowing for smaller ROH
-system("plink --bfile Zoo_LDpruned_0.5_RF --allow-extra-chr --chr-set 18 --homozyg --homozyg-het 0 --homozyg-snp 50 --out zoo_roh_t1")
-zoo_t1_roh_results <- read.table("zoo_roh_t1.hom.indiv", header = T)
-    #no roh found
-##zoo -- following protocol of alemu et al
-system("plink --bfile Zoo_LDpruned_0.5_RF --allow-extra-chr --chr-set 18 --homozyg --homozyg-het 0 --homozyg-snp 50 --homozyg-kb 2000 --homozyg-density 100 --homozyg-gap 500 --out zoo_roh_t2")
-zoo_t2_roh_results <- read.table("zoo_roh_t2.hom.indiv", header = T)
-    #no roh found
-##zoo -- no maf filtering, default plink
-system("plink --bfile Zoo_roh_filter --allow-extra-chr --chr-set 18 --homozyg --out zoo_roh_nomaf_base")
-zoo_nomaf_base_roh_results <- read.table("zoo_roh_nomaf_base.hom.indiv", header = T)
-
-##wild -- all defaults in plink
-system("plink --bfile Wild_LDpruned_0.5_RF --allow-extra-chr --chr-set 18 --homozyg --out wild_roh_base")
-wild_base_roh_results <- read.table("wild_roh_base.hom.indiv", header = T)
-    #no roh found
-##wild --less strigent search parameters, allowing for smaller ROH
-system("plink --bfile Wild_LDpruned_0.5_RF --allow-extra-chr --chr-set 18 --homozyg --homozyg-het 0 --homozyg-snp 50 --out wild_roh_t1")
-wild_t1_roh_results <- read.table("wild_roh_t1.hom.indiv", header = T)
-    #no roh found
-##wild -- following protocol of alemu et al
-system("plink --bfile Wild_LDpruned_0.5_RF --allow-extra-chr --chr-set 18 --homozyg --homozyg-het 0 --homozyg-snp 50 --homozyg-kb 2000 --homozyg-density 100 --homozyg-gap 500 --out wild_roh_t2")
-wild_t2_roh_results <- read.table("wild_roh_t2.hom.indiv", header = T)
-    #no roh found
-##wild -- loosest parameters
-system("plink --bfile Wild_LDpruned_0.5_RF --allow-extra-chr --chr-set 18 --homozyg --homozyg-het 1 --homozyg-snp 25 --homozyg-kb 1000 --homozyg-density 200 --homozyg-gap 1000 --homozyg-window-het 1 --out wild_roh_t3")
-wild_t3_roh_results <- read.table("wild_roh_t3.hom.indiv", header = T)
-##wild -- no maf filtering, no ld pruning default plink
-system("plink --bfile Wild_roh_filter --allow-extra-chr --chr-set 18 --homozyg --out wild_roh_nomaf_base")
-wild_nomaf_base_roh_results <- read.table("wild_roh_nomaf_base.hom.indiv", header = T)
-##wild -- no maf no ld pruning, loosest parameters
-system("plink --bfile Wild_roh_filter --allow-extra-chr --chr-set 18 --homozyg --homozyg-het 1 --homozyg-snp 25 --homozyg-kb 1000 --homozyg-density 200 --homozyg-gap 1000 --homozyg-window-het 1 --out wild_roh_nomaf_t2")
-wild_nomaf_t2_roh_results <- read.table("wild_roh_nomaf_t2.hom.indiv", header = T)
-##wild -- meyermans et al parameters, no maf no ld
-system("plink --bfile Wild_roh_filter --allow-extra-chr --chr-set 18 --homozyg --homozyg-kb 500 --homozyg-het 1 --homozyg-gap 500 --homozyg-window-snp 100 --homozyg-density 40 --out wild_meyer_roh")
-wild_meyer_roh_results <- read.table("wild_meyer_roh.hom.indiv", header = T)
-
-
 ##########ROH WORKING!!!!!!#####
 ##wild -- M.Smith params
 system("plink --bfile Wild_roh_filter --allow-extra-chr --chr-set 18 --homozyg --homozyg-density 50 --homozyg-gap 1000
@@ -581,42 +519,6 @@ system("plink --bfile zoo_roh_filter --allow-extra-chr --chr-set 18 --homozyg --
 zoo_saremi_results <- read.table("zoo_roh_saremi.hom.indiv", header = T)
 
 
-####ROH -- single chromosome test, filtering -- not working####
-setwd("C:/Users/kutab016/Documents/TB_Files/1_Thesis/3_Data/6_Cleaned Data/Genomics/1_WorkingGenomicsFiles/SNP_chrom68")
-###input chrom file
-system("plink --vcf 24041DeY-snp_filter_dp_gq_NC_058368.1.vcf.gz --keep-allele-order --allow-extra-chr --make-bed --out SNP_dp_gq_chrom1")
-###subset individuals
-#create zoo file
-system("plink --bfile SNP_dp_gq_chrom1 --keep pop_subset_zoo.txt --keep-allele-order --allow-extra-chr --make-bed --out Zoo_BaseFilter_chrom1")
-#create wild ocelots, no duplicates file
-system("plink --bfile SNP_dp_gq_chrom1 --keep pop_subset_wild_remove_dups.txt --keep-allele-order --allow-extra-chr --make-bed --out Wild_BaseFilter_chrom1")
-###filter for miss, biallelic, and hwe
-#zoo
-#filter missingness and hwe
-system("plink --bfile Zoo_BaseFilter_chrom1 --allow-extra-chr --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out Zoo_miss90_hwe_chrom1")
-#filter biallelic
-system("plink --bfile Zoo_miss90_hwe_chrom1 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Zoo_roh_chrom1")
-
-#Wild
-#filter missingness and hwe
-system("plink --bfile Wild_BaseFilter_chrom1 --allow-extra-chr --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out Wild_miss90_hwe_chrom1")
-#filter biallelic
-system("plink --bfile Wild_miss90_hwe_chrom1 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Wild_roh_chrom1")
-
-
-###ROH
-#default plink zoo
-system("plink --bfile Zoo_roh_chrom1 --allow-extra-chr --homozyg --out zoo_roh_chr1_default")
-zoo_chr1_default_results <- read.table("zoo_roh_chr1_default.hom.indiv", header = T)
-#meyermans et al zoo
-system("plink --bfile Zoo_roh_chrom1 --allow-extra-chr --homozyg --homozyg-kb 500 --homozyg-het 1 --homozyg-gap 500 --homozyg-window-snp 100 --homozyg-density 40 --out zoo_meyer_chr1")
-zoo_meyer_chr1_results <- read.table("zoo_meyer_chr1.hom.indiv", header = T)
-#default plink wild
-system("plink --bfile Wild_roh_chrom1 --allow-extra-chr --homozyg --out wild_roh_chr1_default")
-wild_chr1_default_results <- read.table("wild_roh_chr1_default.hom.indiv", header = T)
-#meyermans et al wild
-system("plink --bfile Wild_roh_chrom1 --allow-extra-chr --homozyg --homozyg-kb 500 --homozyg-het 1 --homozyg-gap 500 --homozyg-window-snp 100 --homozyg-density 40 --out wild_meyer_chr1")
-wild_meyer_chr1_results <- read.table("wild_meyer_chr1.hom.indiv", header = T)
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
 install.packages("adegenet")
