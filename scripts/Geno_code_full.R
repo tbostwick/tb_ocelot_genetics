@@ -21,12 +21,20 @@ system("plink --vcf 24041DeY-snp_filter_dp_gq__AllChrom_.vcf.gz --keep-allele-or
 ####Subsetting data by origin -- separate zoo and wild for filtering####
 #invokes plink, calls the original file, "--keep" and then feed it a txt file with only the individuals you want
 #tell it the number of chromosomes, make new bed bim fam files, and then what the output should be named
+#create full LEPA file
+system("plink --bfile SNP_dp_gq_AllChrom_AllInd --keep pop_subset_ocelot.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out LEPA_BaseFilter_Allchrom")
 #create zoo file
 system("plink --bfile SNP_dp_gq_AllChrom_AllInd --keep pop_subset_zoo.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Zoo_BaseFilter_Allchrom")
 #create wild ocelots, no duplicates file
 system("plink --bfile SNP_dp_gq_AllChrom_AllInd --keep pop_subset_wild_remove_dups.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Wild_BaseFilter_AllChrom")
 
 ####Filtering -- MAF 0.05 MISS 90 Bialleic####
+##LEPA filtering -- wild and zoo together
+#filter MAF and missingness and hwe
+system("plink --bfile LEPA_BaseFilter_Allchrom --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_maf05_miss90_hwe")
+#filter biallelic
+system("plink --bfile LEPA_maf05_miss90_hwe --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out LEPA_refiltered")
+
 ##Zoo filtering
 #filter MAF and missingness and hwe
 system("plink --bfile Zoo_BaseFilter_Allchrom --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out Zoo_maf05_miss90_hwe")
@@ -129,6 +137,16 @@ system("plink --bfile Refuge_refiltered_uniqueID --extract Refuge_isolatetest_LD
 system("plink --bfile Wild_roh_filter --chr-set 18 --allow-extra-chr --bp-space 1000 --make-bed --out wild_roh_thin")
 #export as vcf
 system("plink2 --bfile wild_roh_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out wild_thinned_roh")
+
+#thinning for dapc
+system("plink --bfile Wild_refiltered --chr-set 18 --allow-extra-chr --bp-space 1000 --make-bed --out wild_dapc_thin")
+system("plink --bfile Zoo_refiltered --chr-set 18 --allow-extra-chr --bp-space 1000 --make-bed --out zoo_dapc_thin")
+system("plink --bfile LEPA_refiltered --chr-set 18 --allow-extra-chr --bp-space 1000 --make-bed --out lepa_dapc_thin")
+
+system("plink2 --bfile wild_dapc_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out wild_dapc_thin")
+system("plink2 --bfile zoo_dapc_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out zoo_dapc_thin")
+system("plink2 --bfile lepa_dapc_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_dapc_thin")
+
 #########################################################
 #Data Analysis
 ####Data exploration and quality checks####
@@ -520,47 +538,25 @@ system("plink --bfile zoo_roh_filter --allow-extra-chr --chr-set 18 --homozyg --
 zoo_saremi_results <- read.table("zoo_roh_saremi.hom.indiv", header = T)
 
 
+####Comparing parameter effects of ROH####
+#populate dataframe with ID's and percent genome in ROH for each parameter run
+roh.df <- wild_smith_results$IID #populate ID's
+roh.df <- as.data.frame(roh.df) #create the data frame
+roh.df$Smith_full <- ((wild_smith_results$KB*1000)/2425730029)*100 #unthinned smith param
+roh.df$Saremi_full <- ((wild_saremi_results$KB*1000)/2425730029)*100 #unthinned saremi param
+roh.df$Saremi_thin <- ((wild_saremi_thin_results$KB*1000)/2425730029)*100 #thinned saremi param
+roh.df$Meyer_thin <- ((wild_meyer_roh_thin_results$KB*1000)/2425730029)*100 #thinned meyermans param
+roh.df$Strict_thin <- ((wild_roh_thin_strict1_results$KB*1000)/2425730029)*100
+
+##writing as csv
+write.csv(roh.df, "wild_roh_percentgenome.csv")
+
 ####Visualizing ROH -- average het and manhatten plots -- not working :(####
 #install and library package
-install.packages("WindowScanR")
-install.packages("data.table")
-library(WindowScanR)
+install.packages("GenWin")
+library(GenWin)
 library(vcfR)
-library(data.table)
 library(dplyr)
-#load data for the package
-wild_thin_roh <- read.vcfR("wild_thinned_roh.vcf.gz")
-cat("Number of variants:", nrow(wild_thin_roh@fix), "\n")
-cat("Number of samples:", ncol(wild_thin_roh@gt) - 1, "\n") # -1 for FORMAT column
-cat("First few samples:", colnames(wild_thin_roh@gt)[2:min(6, ncol(wild_thin_roh@gt))], "\n")
-#extract genotypes from vcf
-# To process all samples in the VCF file
-sample_indices <- 2:ncol(wild_thin_roh@gt)  # Skip FORMAT column
-sample_names <- colnames(wild_thin_roh@gt)[sample_indices]
-# Create an empty list to store results for each sample
-all_results <- list()
-for (i in 1:length(sample_indices)) {
-  # Extract genotypes for this sample
-  sample_gt <- extract.gt(wild_thin_roh, element = "GT")[, i]}
-# Identify heterozygous sites
-is_het <- grepl("[0-9]/[0-9]|[0-9]\\|[0-9]", sample_gt) & 
-  !grepl("^(.)\\1$|^(.)\\|(\\2)$|^(.)/(\\4)$", sample_gt)
-# Create data frame
-het_data <- data.frame(
-  chrom = wild_thin_roh@fix[, "CHROM"],
-  pos = as.numeric(wild_thin_roh@fix[, "POS"]),
-  value = as.numeric(is_het)
-)
-# Run sliding window analysis
-sample_results <- windowscan(
-  x = het_data,
-  window_size = window_size,
-  step_size = step_size,
-  FUN = function(x) mean(x, na.rm = TRUE),
-  na.rm = TRUE
-)
-
-
 
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
@@ -586,17 +582,53 @@ system("plink --bfile Zoo_refiltered_uniqueID --bmerge Wild_refiltered_uniqueID 
 #making vcf's out of plink files
 system("plink2 --bfile Zoo_refiltered --chr-set 18 --allow-extra-chr --export vcf bgz --out Zoo_VCF_DAPC")
 system("plink2 --bfile Wild_refiltered --chr-set 18 --allow-extra-chr --export vcf bgz --out Wild_VCF_DAPC")
-##switching working directories
+####switching working directories####
 setwd("C:/Users/kutab016/Documents/TB_Files/1_Thesis/3_Data/6_Cleaned Data/Genomics/1_WorkingGenomicsFiles/Adegenet_analyses")
 ####vcf to genlight objects -- both pops separate and merged####
-vcf <- read.vcfR("Zoo_VCF_DAPC.vcf.gz", verbose = TRUE)
+#using thinned dataset as unthinned is too large
+vcf <- read.vcfR("zoo_dapc_thin.vcf.gz", verbose = TRUE)
 zoo_genlight <- vcfR2genlight(vcf)
 zoo_genlight
 
-w_vcf <- read.vcfR("Wild_VCF_DAPC.vcf.gz", verbose = TRUE)
+w_vcf <- read.vcfR("wild_dapc_thin.vcf.gz", verbose = TRUE)
 wild_genlight <- vcfR2genlight(w_vcf)
 wild_genlight
 
+lepa_vcf <- read.vcfR("lepa_dapc_thin.vcf.gz", verbose = TRUE)
+lepa_genlight <- vcfR2genlight(lepa_vcf)
+lepa_genlight
+
+##adding population assignments
+w_pop <-read.csv("wild_origins.csv") #reading in origins
+z_pop <- read.csv("zoo_origins.csv")
+l_pop <- read.csv("lepa_origins.csv")
+w_df <- as.data.frame(w_pop) #creating dataframe from origins
+z_df <-as.data.frame(z_pop)
+l_df <- as.data.frame(l_pop)
+
+strata(wild_genlight) <- w_df #creating a strata for pop id's
+setPop(wild_genlight) <- ~Pop #setting the pop from the strata
+strata(zoo_genlight) <- z_df
+setPop(zoo_genlight) <- ~Pop
+strata(lepa_genlight) <- l_df
+setPop(lepa_genlight) <- ~Pop
+
 ####finding clusters####
 zoo_clust <-find.clusters(zoo_genlight, max.n.clust = 40)
+wild_clust <-find.clusters(wild_genlight, max.n.clust = 40)
+lepa_clust <-find.clusters(lepa_genlight, max.n.clust = 40)
 
+#looking at outputs
+names(zoo_clust)
+names(wild_clust)
+zoo_clust$size
+wild_clust$size
+#looking at groups
+table(pop(wild_genlight), wild_clust$grp)
+table(pop(zoo_genlight), zoo_clust$grp)
+
+####making DAPC####
+w_dapc <- dapc(wild_genlight, wild_clust$grp)
+w_dapc
+
+scatter(w_dapc, posi.da = "bottomright", bg = "white")
