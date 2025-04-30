@@ -525,6 +525,23 @@ system("plink --bfile wild_roh_thin --allow-extra-chr --chr-set 18 --homozyg --h
        --homozyg-window-threshold 0.05 --homozyg-het 750 --out wild_roh_thin_strict1")
 wild_roh_thin_strict1_results <- read.table("wild_roh_thin_strict1.hom.indiv", header = T)
 
+#wild --thinned, second try of stricter saremi params for thinned data -- still too permissive
+system("plink --bfile wild_roh_thin --allow-extra-chr --chr-set 18 --homozyg --homozyg-gap 1000
+       --homozyg-kb 300 --homozyg-snp 50 --homozyg-window-het 3 --homozyg-window-missing 20 --homozyg-window-snp 50
+       --homozyg-window-threshold 0.02 --out wild_roh_thin_test1")
+wild_roh_thin_test1_results <- read.table("wild_roh_thin_test1.hom.indiv", header = T)
+
+#wild --thinned, third try of stricter saremi params for thinned data ---BEST SO FAR
+system("plink --bfile wild_roh_thin --allow-extra-chr --chr-set 18 --homozyg --homozyg-gap 1000
+       --homozyg-kb 500 --homozyg-snp 50 --homozyg-window-het 3 --homozyg-het 20 --homozyg-window-missing 20 --homozyg-window-snp 100
+       --homozyg-window-threshold 0.02 --out wild_roh_thin_test2")
+wild_roh_thin_test2_results <- read.table("wild_roh_thin_test2.hom.indiv", header = T)
+
+#wild --thinned, third adjustment test -- no more than 20% variation across individuals
+system("plink --bfile wild_roh_thin --allow-extra-chr --chr-set 18 --homozyg --homozyg-gap 1000
+       --homozyg-kb 300 --homozyg-snp 50 --homozyg-window-het 3 --homozyg-het 20 --homozyg-window-missing 10 --homozyg-window-snp 100
+       --homozyg-window-threshold 0.05 --out wild_roh_thin_test3")
+wild_roh_thin_test3_results <- read.table("wild_roh_thin_test3.hom.indiv", header = T)
 
 ##zoo -- M.Smith params
 system("plink --bfile Zoo_roh_filter --allow-extra-chr --chr-set 18 --homozyg --homozyg-density 50 --homozyg-gap 1000
@@ -537,9 +554,15 @@ system("plink --bfile zoo_roh_filter --allow-extra-chr --chr-set 18 --homozyg --
        --homozyg-window-threshold 0.02 --homozyg-het 750 --out zoo_roh_saremi")
 zoo_saremi_results <- read.table("zoo_roh_saremi.hom.indiv", header = T)
 
+#zoo --thinned, third try of stricter saremi params for thinned data ---BEST SO FAR
+system("plink --bfile zoo_dapc_thin --allow-extra-chr --chr-set 18 --homozyg --homozyg-gap 1000
+       --homozyg-kb 500 --homozyg-snp 50 --homozyg-window-het 3 --homozyg-het 20 --homozyg-window-missing 20 --homozyg-window-snp 100
+       --homozyg-window-threshold 0.02 --out zoo_roh_thin_test2")
+zoo_roh_thin_test2_results <- read.table("zoo_roh_thin_test2.hom.indiv", header = T)
+
 
 ####Comparing parameter effects of ROH####
-#populate dataframe with ID's and percent genome in ROH for each parameter run
+#wild -- populate dataframe with ID's and percent genome in ROH for each parameter run
 roh.df <- wild_smith_results$IID #populate ID's
 roh.df <- as.data.frame(roh.df) #create the data frame
 roh.df$Smith_full <- ((wild_smith_results$KB*1000)/2425730029)*100 #unthinned smith param
@@ -547,9 +570,18 @@ roh.df$Saremi_full <- ((wild_saremi_results$KB*1000)/2425730029)*100 #unthinned 
 roh.df$Saremi_thin <- ((wild_saremi_thin_results$KB*1000)/2425730029)*100 #thinned saremi param
 roh.df$Meyer_thin <- ((wild_meyer_roh_thin_results$KB*1000)/2425730029)*100 #thinned meyermans param
 roh.df$Strict_thin <- ((wild_roh_thin_strict1_results$KB*1000)/2425730029)*100
-
+roh.df$Thin_test1 <- ((wild_roh_thin_test1_results$KB*1000)/2425730029)*100
+roh.df$Thin_test2 <- ((wild_roh_thin_test2_results$KB*1000)/2425730029)*100
+roh.df$Thin_test3 <- ((wild_roh_thin_test3_results$KB*1000)/2425730029)*100
 ##writing as csv
 write.csv(roh.df, "wild_roh_percentgenome.csv")
+
+#zoo -- populate dataframe with ID's and percent genome for each parameter test
+roh.df.z <- zoo_saremi_results$IID #populate ID's
+roh.df.z <- as.data.frame(roh.df.z) #create the data frame
+roh.df.z$Saremi_full <- ((zoo_saremi_results$KB*1000)/2425730029)*100 #unthinned saremi param
+roh.df.z$Thin_test2 <- ((zoo_roh_thin_test2_results$KB*1000)/2425730029)*100
+write.csv(roh.df.z, "zoo_roh_percentgenome.csv")
 
 ####Visualizing ROH -- average het and manhatten plots -- not working :(####
 #install and library package
@@ -626,9 +658,64 @@ wild_clust$size
 #looking at groups
 table(pop(wild_genlight), wild_clust$grp)
 table(pop(zoo_genlight), zoo_clust$grp)
+table(pop(lepa_genlight), lepa_clust$grp) #gave weird groupings? with 4 clusters selected
 
 ####making DAPC####
 w_dapc <- dapc(wild_genlight, wild_clust$grp)
 w_dapc
 
 scatter(w_dapc, posi.da = "bottomright", bg = "white")
+
+l_dapc <- dapc(lepa_genlight, lepa_clust$grp)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
