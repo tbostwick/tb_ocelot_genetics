@@ -583,12 +583,85 @@ roh.df.z$Saremi_full <- ((zoo_saremi_results$KB*1000)/2425730029)*100 #unthinned
 roh.df.z$Thin_test2 <- ((zoo_roh_thin_test2_results$KB*1000)/2425730029)*100
 write.csv(roh.df.z, "zoo_roh_percentgenome.csv")
 
-####Visualizing ROH -- average het and manhatten plots -- not working :(####
-#install and library package
-install.packages("GenWin")
-library(GenWin)
-library(vcfR)
-library(dplyr)
+####Visualizing ROH --karyotype plot
+#install packages
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+if (!requireNamespace("karyoploteR", quietly = TRUE))
+  BiocManager::install("karyoploteR")
+if (!requireNamespace("regioneR", quietly = TRUE))
+  BiocManager::install("regioneR")
+if (!requireNamespace("GenomicRanges", quietly = TRUE))
+  BiocManager::install("GenomicRanges")
+if (!requireNamespace("IRanges", quietly = TRUE))
+  BiocManager::install("IRanges")
+if (!requireNamespace("data.table", quietly = TRUE))
+  install.packages("data.table")
+library(karyoploteR)
+library(regioneR)
+library(GenomicRanges)
+library(data.table)
+library(IRanges)
+
+#read in hom file
+w_hom <- read.table("wild_roh_thin_test2.hom", header = TRUE)
+#make data frame for plotting
+w_roh_plot <- data.frame(
+  chr = paste0("chr", w_hom$CHR),  # Add 'chr' prefix if needed
+  start = w_hom$POS1,
+  end = w_hom$POS2,
+  kb = w_hom$KB,           # ROH length in KB
+  nsnp = w_hom$NSNP,       # Number of SNPs in ROH
+  sample_id = w_hom$IID    # Individual ID
+)
+#create custom feline genotype for karyoploteR, make a custom plot type for the 18 chr
+feline_chr_sizes <- data.frame(
+  chr = c("chrNC_058368.1", "chrNC_058369.1", "chrNC_058370.1", "chrNC_058371.1", "chrNC_058372.1", "chrNC_058373.1", "chrNC_058374.1",
+          "chrNC_058375.1", "chrNC_058376.1", "chrNC_058377.1", "chrNC_058378.1", "chrNC_058379.1", "chrNC_058380.1", "chrNC_058381.1",
+          "chrNC_058382.1", "chrNC_058383.1", "chrNC_058384.1", "chrNC_058385.1"), 
+  start = rep(1, 18),
+  end = c(239367248,  # chr1
+    169388855,  # chr2
+    140443288,  # chr3
+    205367284,  # chr4
+    151959158,  # chr5
+    148491486,  # chr6
+    142168536,  # chr7
+    221611373,  # chr8
+    158578461,  # chr9
+    115366950,  # chr10
+    8808357,   # chr11
+    94435393,   # chr12
+    95154158,   # chr13
+    61876196,   # chr14
+    61988844,   # chr15
+    41437797,   # chr16
+    69239673,   # chr17
+    83466477   # chr18
+    )
+)  
+feline_genome_gr <- GRanges(seqnames = feline_chr_sizes$chr, ranges = IRanges(start = feline_chr_sizes$start, end = feline_chr_sizes$end)) #make into grange object
+ocel_genome <- feline_genome_gr #making the custom plot type
+seqlevels(ocel_genome) <- feline_chr_sizes$chr
+seqlengths(ocel_genome) <- feline_chr_sizes$end
+
+# roh convert to GRanges object
+w_roh_gr <- GRanges(
+  seqnames = w_roh_plot$chr,
+  ranges = IRanges(start = w_roh_plot$start, end = w_roh_plot$end),
+  kb = w_roh_plot$kb,
+  nsnp = w_roh_plot$nsnp,
+  sample_id = w_roh_plot$sample_id) #making hom file into grange
+
+# set up for plotting for a single individual
+plot_individual_roh <- function(sample_id, output_file = NULL) {
+  # Filter ROH data for specific individual
+  individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id == sample_id]}
+  
+#create the plot using the custom genome
+kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH for", sample_id))
+
+
 
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
@@ -667,7 +740,11 @@ w_dapc
 scatter(w_dapc, posi.da = "bottomright", bg = "white")
 
 l_dapc <- dapc(lepa_genlight, lepa_clust$grp)
-
+scatter(l_dapc)
+myCol <- c("darkblue","purple","green","orange","red","blue")
+scatter(l_dapc, posi.da="bottomright", bg="white",
+        pch=17:22, cstar=0, col=myCol, scree.pca=TRUE,
+        posi.pca="bottomleft")
 
 
 
