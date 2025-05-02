@@ -670,19 +670,17 @@ w_roh_gr <- GRanges(
   nsnp = w_roh_plot$nsnp,
   sample_id = w_roh_plot$sample_id) #making hom file into grange
 
-# plotting for single individual -- plotting as a function
+#####creating function for plotting
 plot_individual_roh <- function(sample_id, output_file = NULL) {
   # Filter ROH data for specific individual
-  individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id == sample_id]
+  individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id %in% sample_id]
   # Determine if output should go to a file
   if (!is.null(output_file)) {
     pdf(output_file, width = 10, height = 7)
   }
-
 #create the plot using the custom genome
 w_kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH for", sample_id))
 #kpAddChromosomeNames(w_kp, srt = 45, cex = 0.8) #not using this line for now
-
 #plot individuals
 kpRect(w_kp, 
        chr = as.character(seqnames(individual_roh)), 
@@ -697,17 +695,29 @@ kpRect(w_kp,
 if (!is.null(output_file)) {
   dev.off()
 }
-
 # Return the filtered data
 return(individual_roh)
 }
 
-#troubleshooting
-dev.list() # List all open devices
-if(length(dev.list()) > 0) {
-  dev.off()} # Close the current device
-  # Or close all devices with:
-  # graphics.off()
+##using the function -- plotting individual roh
+unique_samples <- unique(w_roh_plot$sample_id)
+print(paste("Found", length(unique_samples), "samples in the data"))
+
+  
+# Sanitize function to make safe filenames
+sanitize_filename <- function(name) {
+  gsub("[^A-Za-z0-9_]", "_", name)  # Replace anything that's not a letter, number, or underscore
+}
+
+# Create directory for plots
+dir.create("wild_roh_plots", showWarnings = FALSE)
+
+# Loop through each sample and create sanitized output files
+for (sample_id in unique_samples) {
+  safe_id <- sanitize_filename(sample_id)
+  output_file <- paste0("wild_roh_plots/", safe_id, "_roh_plot.pdf")
+  plot_individual_roh(sample_id, output_file)
+}
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
 install.packages("adegenet")
