@@ -614,11 +614,28 @@ w_roh_plot <- data.frame(
   nsnp = w_hom$NSNP,       # Number of SNPs in ROH
   sample_id = w_hom$IID    # Individual ID
 )
+#fixing chrome naming
+w_roh_plot[w_roh_plot == "chrNC_058368.1"] <- "chr1"
+w_roh_plot[w_roh_plot == "chrNC_058369.1"] <- "chr2"
+w_roh_plot[w_roh_plot == "chrNC_058370.1"] <- "chr3"
+w_roh_plot[w_roh_plot == "chrNC_058371.1"] <- "chr4"
+w_roh_plot[w_roh_plot == "chrNC_058372.1"] <- "chr5"
+w_roh_plot[w_roh_plot == "chrNC_058373.1"] <- "chr6"
+w_roh_plot[w_roh_plot == "chrNC_058374.1"] <- "chr7"
+w_roh_plot[w_roh_plot == "chrNC_058375.1"] <- "chr8"
+w_roh_plot[w_roh_plot == "chrNC_058376.1"] <- "chr9"
+w_roh_plot[w_roh_plot == "chrNC_058377.1"] <- "chr10"
+w_roh_plot[w_roh_plot == "chrNC_058378.1"] <- "chr11"
+w_roh_plot[w_roh_plot == "chrNC_058379.1"] <- "chr12"
+w_roh_plot[w_roh_plot == "chrNC_058380.1"] <- "chr13"
+w_roh_plot[w_roh_plot == "chrNC_058381.1"] <- "chr14"
+w_roh_plot[w_roh_plot == "chrNC_058382.1"] <- "chr15"
+w_roh_plot[w_roh_plot == "chrNC_058383.1"] <- "chr16"
+w_roh_plot[w_roh_plot == "chrNC_058384.1"] <- "chr17"
+w_roh_plot[w_roh_plot == "chrNC_058385.1"] <- "chr18"
 #create custom feline genotype for karyoploteR, make a custom plot type for the 18 chr
 feline_chr_sizes <- data.frame(
-  chr = c("chrNC_058368.1", "chrNC_058369.1", "chrNC_058370.1", "chrNC_058371.1", "chrNC_058372.1", "chrNC_058373.1", "chrNC_058374.1",
-          "chrNC_058375.1", "chrNC_058376.1", "chrNC_058377.1", "chrNC_058378.1", "chrNC_058379.1", "chrNC_058380.1", "chrNC_058381.1",
-          "chrNC_058382.1", "chrNC_058383.1", "chrNC_058384.1", "chrNC_058385.1"), 
+  chr = c(paste0("chr", 1:18)), 
   start = rep(1, 18),
   end = c(239367248,  # chr1
     169388855,  # chr2
@@ -630,7 +647,7 @@ feline_chr_sizes <- data.frame(
     221611373,  # chr8
     158578461,  # chr9
     115366950,  # chr10
-    8808357,   # chr11
+    88083857,   # chr11
     94435393,   # chr12
     95154158,   # chr13
     61876196,   # chr14
@@ -653,16 +670,44 @@ w_roh_gr <- GRanges(
   nsnp = w_roh_plot$nsnp,
   sample_id = w_roh_plot$sample_id) #making hom file into grange
 
-# set up for plotting for a single individual
+# plotting for single individual -- plotting as a function
 plot_individual_roh <- function(sample_id, output_file = NULL) {
   # Filter ROH data for specific individual
-  individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id == sample_id]}
-  
+  individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id == sample_id]
+  # Determine if output should go to a file
+  if (!is.null(output_file)) {
+    pdf(output_file, width = 10, height = 7)
+  }
+
 #create the plot using the custom genome
-kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH for", sample_id))
+w_kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH for", sample_id))
+#kpAddChromosomeNames(w_kp, srt = 45, cex = 0.8) #not using this line for now
 
+#plot individuals
+kpRect(w_kp, 
+       chr = as.character(seqnames(individual_roh)), 
+       x0 = start(individual_roh), 
+       x1 = end(individual_roh),
+       y0 = 0, 
+       y1 = 1, 
+       col = "#FF000080",  # Semi-transparent red
+       border = "#FF0000",
+       r0 = 0.5, r1 = 0.8)
+# Close file if opened
+if (!is.null(output_file)) {
+  dev.off()
+}
 
+# Return the filtered data
+return(individual_roh)
+}
 
+#troubleshooting
+dev.list() # List all open devices
+if(length(dev.list()) > 0) {
+  dev.off()} # Close the current device
+  # Or close all devices with:
+  # graphics.off()
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
 install.packages("adegenet")
