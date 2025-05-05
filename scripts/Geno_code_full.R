@@ -543,6 +543,24 @@ system("plink --bfile wild_roh_thin --allow-extra-chr --chr-set 18 --homozyg --h
        --homozyg-window-threshold 0.05 --out wild_roh_thin_test3")
 wild_roh_thin_test3_results <- read.table("wild_roh_thin_test3.hom.indiv", header = T)
 
+#wild --thinned -- composite params test -- combined saremi, test3, and meyermans
+system("plink --bfile wild_roh_thin --allow-extra-chr --chr-set 18 --homozyg  --homozyg-kb 300  --homozyg-snp 50 --homozyg-density 40 
+       --homozyg-gap 500 --homozyg-het 3 --homozyg-window-snp 100 --homozyg-window-het 3  --homozyg-window-missing 5 
+       --homozyg-window-threshold 0.05 --out wild_thin_composite1")
+wild_roh_comp_results <- read.table("wild_thin_composite1.hom.indiv", header = T)
+
+#wild --thinned -- composite params test 2 -- combined saremi, test3, and meyermans --adjusted homozyg-het and gap to potentially reduce breaks
+system("plink --bfile wild_roh_thin --allow-extra-chr --chr-set 18 --homozyg  --homozyg-kb 300  --homozyg-snp 50 --homozyg-density 40 --homozyg-gap 1000 --homozyg-het 10 --homozyg-window-snp 100 --homozyg-window-het 3  --homozyg-window-missing 5 --homozyg-window-threshold 0.05 --out wild_thin_composite2")
+wild_roh_comp2_results <- read.table("wild_thin_composite2.hom.indiv", header = T)
+
+#wild --thinned, fourth adjustment test -- reduced homozyg-het flag
+system("plink --bfile wild_roh_thin --allow-extra-chr --chr-set 18 --homozyg --homozyg-gap 1000
+       --homozyg-kb 300 --homozyg-snp 50 --homozyg-window-het 3 --homozyg-het 3 --homozyg-window-missing 10 --homozyg-window-snp 100
+       --homozyg-window-threshold 0.05 --out wild_roh_thin_test4")
+wild_roh_thin_test4_results <- read.table("wild_roh_thin_test4.hom.indiv", header = T)
+
+
+
 ##zoo -- M.Smith params
 system("plink --bfile Zoo_roh_filter --allow-extra-chr --chr-set 18 --homozyg --homozyg-density 50 --homozyg-gap 1000
        --homozyg-kb 300 --homozyg-snp 50 --homozyg-window-het 5 --homozyg-window-missing 5 --homozyg-window-snp 50
@@ -573,6 +591,9 @@ roh.df$Strict_thin <- ((wild_roh_thin_strict1_results$KB*1000)/2425730029)*100
 roh.df$Thin_test1 <- ((wild_roh_thin_test1_results$KB*1000)/2425730029)*100
 roh.df$Thin_test2 <- ((wild_roh_thin_test2_results$KB*1000)/2425730029)*100
 roh.df$Thin_test3 <- ((wild_roh_thin_test3_results$KB*1000)/2425730029)*100
+roh.df$Thin_test4 <- ((wild_roh_thin_test4_results$KB*1000)/2425730029)*100
+roh.df$Composite_thin <- ((wild_roh_comp_results$KB*1000)/2425730029)*100
+roh.df$Composite_thin2 <- ((wild_roh_comp2_results$KB*1000)/2425730029)*100
 ##writing as csv
 write.csv(roh.df, "wild_roh_percentgenome.csv")
 
@@ -583,7 +604,7 @@ roh.df.z$Saremi_full <- ((zoo_saremi_results$KB*1000)/2425730029)*100 #unthinned
 roh.df.z$Thin_test2 <- ((zoo_roh_thin_test2_results$KB*1000)/2425730029)*100
 write.csv(roh.df.z, "zoo_roh_percentgenome.csv")
 
-####Visualizing ROH --karyotype plot
+####Visualizing ROH --karyotype plot -- wild####
 #install packages
 if (!requireNamespace("BiocManager", quietly = TRUE))
   install.packages("BiocManager")
@@ -597,14 +618,16 @@ if (!requireNamespace("IRanges", quietly = TRUE))
   BiocManager::install("IRanges")
 if (!requireNamespace("data.table", quietly = TRUE))
   install.packages("data.table")
+install.packages("GenomicAlignments")
 library(karyoploteR)
 library(regioneR)
 library(GenomicRanges)
 library(data.table)
 library(IRanges)
+library(GenomicAlignments)
 
 #read in hom file
-w_hom <- read.table("wild_roh_thin_test2.hom", header = TRUE)
+w_hom <- read.table("wild_thin_composite2.hom", header = TRUE)
 #make data frame for plotting
 w_roh_plot <- data.frame(
   chr = paste0("chr", w_hom$CHR),  # Add 'chr' prefix if needed
@@ -614,6 +637,9 @@ w_roh_plot <- data.frame(
   nsnp = w_hom$NSNP,       # Number of SNPs in ROH
   sample_id = w_hom$IID    # Individual ID
 )
+w_pop_id <- read.csv("wild_origins_2.csv") #adding population information
+w_pop_id_df <-as.data.frame(w_pop_id)
+w_roh_pop <- merge(w_roh_plot, w_pop_id_df, by = "sample_id", all = TRUE) #merging the population information with the data frame
 #fixing chrome naming
 w_roh_plot[w_roh_plot == "chrNC_058368.1"] <- "chr1"
 w_roh_plot[w_roh_plot == "chrNC_058369.1"] <- "chr2"
@@ -670,7 +696,15 @@ w_roh_gr <- GRanges(
   nsnp = w_roh_plot$nsnp,
   sample_id = w_roh_plot$sample_id) #making hom file into grange
 
-#####creating function for plotting
+pop_gr <- GRanges(
+  seqnames = w_roh_pop$chr,
+  ranges = IRanges(start = w_roh_pop$start, end = w_roh_pop$end),
+  kb = w_roh_pop$kb,
+  nsnp = w_roh_pop$nsnp,
+  sample_id = w_roh_pop$sample_id,
+  population_id = w_roh_pop$pop_id)
+
+#####creating function for plotting -- individual
 plot_individual_roh <- function(sample_id, output_file = NULL) {
   # Filter ROH data for specific individual
   individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id %in% sample_id]
@@ -699,9 +733,63 @@ if (!is.null(output_file)) {
 return(individual_roh)
 }
 
+####function for plotting -- population wide
+plot_population_roh_smoothed <- function(population_id, output_file = NULL, window_size = 1e5, smooth = TRUE) {
+  # Subset to individuals from the desired population
+  pop_roh <- pop_gr[mcols(pop_gr)$population_id == population_id]
+  
+  if (length(pop_roh) == 0) {
+    message("No ROH data found for population: ", population_id)
+    return(NULL)
+  }
+  
+  # Optional output to file
+  if (!is.null(output_file)) {
+    pdf(output_file, width = 10, height = 7)
+  }
+  
+  # Plot karyotype
+  pop_kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH Density for", population_id))
+  
+  # Calculate raw coverage (how many ROHs overlap each base)
+  roh_cov <- coverage(pop_roh)
+  
+  # Smooth and plot each chromosome
+  for (chr in names(roh_cov)) {
+    cov_vector <- as.numeric(roh_cov[[chr]])
+    
+    if (smooth) {
+      # Apply rolling mean smoothing (simple moving average)
+      kernel <- rep(1/window_size, window_size)
+      smoothed <- stats::filter(cov_vector, kernel, sides = 2, circular = FALSE)
+    } else {
+      smoothed <- cov_vector
+    }
+    
+    # Build GRanges object with smoothed values
+    pos <- IRanges(start = seq_along(smoothed), width = 1)
+    smoothed_gr <- GRanges(seqnames = chr, ranges = pos, score = smoothed)
+    
+    # Reduce resolution for plotting (optional)
+    smoothed_gr <- smoothed_gr[start(smoothed_gr) %% 1000 == 0]  # sample every 1kb
+    
+    # Plot line track
+    kpPlotLines(w_kp, data = smoothed_gr, y = mcols(smoothed_gr)$score, col = "red", r0 = 0.5, r1 = 0.8)
+  }
+  
+  if (!is.null(output_file)) {
+    dev.off()
+  }
+  
+  invisible(NULL)
+}
+
 ##using the function -- plotting individual roh
 unique_samples <- unique(w_roh_plot$sample_id)
 print(paste("Found", length(unique_samples), "samples in the data"))
+
+##using the function -- plotting population roh
+unique_pops <- unique(mcols(pop_gr)$population_id)
 
   
 # Sanitize function to make safe filenames
@@ -712,12 +800,24 @@ sanitize_filename <- function(name) {
 # Create directory for plots
 dir.create("wild_roh_plots", showWarnings = FALSE)
 
+dir.create("wild_roh_density_plots", showWarnings = FALSE)
+
 # Loop through each sample and create sanitized output files
 for (sample_id in unique_samples) {
   safe_id <- sanitize_filename(sample_id)
   output_file <- paste0("wild_roh_plots/", safe_id, "_roh_plot.pdf")
   plot_individual_roh(sample_id, output_file)
 }
+
+#loop through to create output files
+for (pop in unique_pops) {
+  safe_name <- sanitize_filename(pop)
+  output_file <- paste0("wild_roh_density_plots/pop_", safe_name, "_roh_density.pdf")
+  plot_population_roh_smoothed(population_id = pop, output_file = output_file)
+}
+
+###ROH overlap plot
+
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
 install.packages("adegenet")
@@ -800,54 +900,3 @@ myCol <- c("darkblue","purple","green","orange","red","blue")
 scatter(l_dapc, posi.da="bottomright", bg="white",
         pch=17:22, cstar=0, col=myCol, scree.pca=TRUE,
         posi.pca="bottomleft")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
