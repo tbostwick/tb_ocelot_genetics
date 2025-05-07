@@ -12,6 +12,8 @@ library(ggplot2)
 library(dplyr)
 install.packages("HardyWeinberg")
 library(HardyWeinberg)
+BiocManager::install("snpStats")
+library(snpStats)
 
 ##########################################################
 #Data Prep, filtering and LD Pruning
@@ -34,6 +36,31 @@ system("plink --bfile SNP_dp_gq_AllChrom_AllInd --keep pop_subset_wild_remove_du
 system("plink --bfile LEPA_BaseFilter_Allchrom --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_maf05_miss90_hwe")
 #filter biallelic
 system("plink --bfile LEPA_maf05_miss90_hwe --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out LEPA_refiltered")
+###fixing chromosome names -- lepa
+#read in bim file
+bim <- read.table("LEPA_refiltered.bim", stringsAsFactors = FALSE)
+colnames(bim) <- c("chr", "snp", "cm", "pos", "a1", "a2")
+#check for duplicates -- keep getting duplicate error in other methods
+table(duplicated(bim$snp))
+sum(bim$snp == ".")
+#get the unique chr names
+unique_chrs <- unique(bim$chr)
+print(unique_chrs)
+chr_map <- data.frame(
+  old_chr = unique_chrs,
+  new_chr = 1:length(unique_chrs),
+  stringsAsFactors = FALSE
+)
+print(chr_map)
+#apply that to the bim file directly
+for (i in 1:nrow(chr_map)) {
+  bim$chr[bim$chr == chr_map$old_chr[i]] <- chr_map$new_chr[i]
+}
+#write updated bim file
+write.table(bim, "LEPA_rf_standard.bim", quote = FALSE, sep = "\t", 
+            row.names = FALSE, col.names = FALSE)
+#have plink write new bim bam bed files with the new bim file we created
+system("plink --bed LEPA_refiltered.bed --bim LEPA_rf_standard.bim --fam LEPA_refiltered.fam --make-bed --out LEPA_rf_standard")
 
 ##Zoo filtering
 #filter MAF and missingness and hwe
@@ -46,6 +73,20 @@ system("plink --bfile Zoo_maf05_miss90_hwe --chr-set 18 --allow-extra-chr --keep
 system("plink --bfile Wild_BaseFilter_AllChrom --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out Wild_maf05_miss90_hwe")
 #filter biallelic
 system("plink --bfile Wild_maf05_miss90 --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Wild_refiltered")
+###fixing chromosome names -- wild
+#read in bim file
+w_bim <- read.table("Wild_refiltered.bim", stringsAsFactors = FALSE)
+colnames(w_bim) <- c("chr", "snp", "cm", "pos", "a1", "a2")
+#apply that to the bim file directly - using chr map made earlier
+for (i in 1:nrow(chr_map)) {
+  w_bim$chr[w_bim$chr == chr_map$old_chr[i]] <- chr_map$new_chr[i]
+}
+#write updated bim file
+write.table(w_bim, "Wild_rf_standard.bim", quote = FALSE, sep = "\t", 
+            row.names = FALSE, col.names = FALSE)
+#have plink write new bim bam bed files with the new bim file we created
+system("plink --bed Wild_refiltered.bed --bim Wild_rf_standard.bim --fam Wild_refiltered.fam --make-bed --out Wild_rf_standard")
+
 
 ####Filtering -- ROH filters no MAF, miss 90, biallelic####
 #filter MAF and missingness and hwe
@@ -604,6 +645,33 @@ roh.df.z$Saremi_full <- ((zoo_saremi_results$KB*1000)/2425730029)*100 #unthinned
 roh.df.z$Thin_test2 <- ((zoo_roh_thin_test2_results$KB*1000)/2425730029)*100
 write.csv(roh.df.z, "zoo_roh_percentgenome.csv")
 
+####proportion of ROH lengths
+#read in .hom files
+w_roh_t2 <- read.table("wild_roh_thin_test2.hom", header = T)
+#calculate length in Mb -- kb to mb conversion
+w_roh_t2$Length_MB <- w_roh_t2$KB/1000
+#look at resulting distribution
+hist(w_roh_t2$Length_MB, main="Distribution of ROH lengths", xlab="Length (MB)")
+#define length categories
+w_roh_t2$Category <- cut(w_roh_t2$Length_MB,
+                         breaks = c(0, 1, 2, 4, 6, 8, Inf),
+                         labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", ">8Mb"),
+                         include.lowest = TRUE)
+#get total proportion -- cumulative
+w_total_length_all <- sum(w_roh_t2$Length_MB)
+w_total_summary <- w_roh_t2 %>%
+  group_by(Category) %>%
+  summarize(
+    Count = n(),
+    Total_Length_MB = sum(Length_MB),
+    Proportion_Length = sum(Length_MB)/w_total_length_all,
+    Proportion_count = n()/nrow(w_roh_t2)
+  )
+#save results
+write.csv(w_total_summary, "overall_roh_length_proportions_t2.csv")
+
+#proportions by individual
+
 ####Visualizing ROH --karyotype plot -- wild####
 #install packages
 if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -774,7 +842,7 @@ plot_population_roh_smoothed <- function(population_id, output_file = NULL, wind
     smoothed_gr <- smoothed_gr[start(smoothed_gr) %% 1000 == 0]  # sample every 1kb
     
     # Plot line track
-    kpPlotLines(w_kp, data = smoothed_gr, y = mcols(smoothed_gr)$score, col = "red", r0 = 0.5, r1 = 0.8)
+    kpPlotLines(pop_kp, data = smoothed_gr, y = mcols(smoothed_gr)$score, col = "red", r0 = 0.5, r1 = 0.8)
   }
   
   if (!is.null(output_file)) {
@@ -900,3 +968,153 @@ myCol <- c("darkblue","purple","green","orange","red","blue")
 scatter(l_dapc, posi.da="bottomright", bg="white",
         pch=17:22, cstar=0, col=myCol, scree.pca=TRUE,
         posi.pca="bottomleft")
+
+################################################################################
+##admixture plots
+
+####admixture code from StructuRly####
+library(ade4)
+library(adegenet)
+library(assertthat)
+library(clipr)
+library(colourpicker)
+library(dendextend)
+library(DT)
+library(grDevices)
+library(janitor)
+library(mcclust)
+library(pegas)
+library(plotly)
+library(poppr)
+library(processx)
+library(randomcoloR)
+library(RColorBrewer)
+library(reshape2)
+library(scales)
+library(shiny)
+library(shinymeta)
+library(shinyjs)
+library(tidyr)
+str_plot <- local({
+  Dataset <- Data_DA_Str()
+  if ("Loc_ID" %in% colnames(Dataset)) {
+    Dataset$Loc_ID <- factor(Dataset$Loc_ID)
+  }
+  Collection_site_shape <- as.factor(seq(from = 0, to = 25, by = 1))
+  if (!"Sample_ID" %in% colnames(Dataset)) {
+    Dataset <- cbind(Sample_ID = seq(from = 1, to = length(Dataset[, 2]), by = 1), Dataset)
+  }
+  Dataset_m <- Data_plot()
+  Colours <- reactive({
+    if (input$barplot_colours_vector == "Customized") {
+      Colours <- c(input$colour_1, input$colour_2, input$colour_3, input$colour_4, input$colour_5, input$colour_6, input$colour_7, input$colour_8, input$colour_9, input$colour_10, input$colour_11, input$colour_12, input$colour_13, input$colour_14, input$colour_15, input$colour_16, input$colour_17, input$colour_18, input$colour_19, input$colour_20)
+    } else {
+      input$resample_gray_scale
+      isolate({
+        Colours <- sample(x = gray.colors(n = 50), size = 20, replace = FALSE)
+      })
+    }
+    return(Colours)
+  })
+  if (all(c("Pop_ID", "Loc_ID") %in% colnames(Dataset))) {
+    numColors <- length(levels(Dataset_m$Pop_ID))
+    Pop_Col <- distinctColorPalette(k = numColors)
+    names(Pop_Col) <- levels(Dataset_m$Pop_ID)
+    Palette_Match <- as.data.frame(Pop_Col, stringsAsFactors = FALSE)
+    Palette_Match$Pop_ID <- rownames(Palette_Match)
+    y <- split(Dataset_m, f = Dataset_m$Cluster)
+    Pop_ID <- data.frame(Pop_ID = y$`1`$Pop_ID)
+    vec <- c(Palette_Match$Pop_Col[match(Pop_ID$Pop_ID, Palette_Match$Pop_ID)])
+    if (input$group_barplot_by == "-----") {
+      p <- ggplot() +
+        geom_bar(data = Dataset_m, aes(x = Sample_ID, name = Pop_ID, Site = Loc_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+        scale_y_continuous(limits = c(0, 1.06), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+        scale_fill_manual("Cluster", values = Colours()) +
+        labs(y = "Admixture index [%]", title = input$barplot_title, colour = "Collection site", shape = "Collection site") +
+        theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1, colour = vec), axis.ticks = element_line(size = 0.3), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+    } else if (input$group_barplot_by == "Pop_ID") {
+      facet_formula <- as.formula(paste("~", input$group_barplot_by))
+      p <- ggplot() +
+        geom_bar(data = Dataset_m, aes(x = Sample_ID, name = Pop_ID, Site = Loc_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+        facet_grid(facet_formula, scales = "free_x") +
+        scale_y_continuous(limits = c(0, 1.06), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+        scale_fill_manual("Cluster", values = Colours()) +
+        labs(y = "Admixture index [%]", title = input$barplot_title, colour = "Collection site", shape = "Collection site") +
+        theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1), axis.ticks = element_line(size = 0.3), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+    } else if (input$group_barplot_by == "Loc_ID") {
+      p <- ggplot() +
+        geom_bar(data = Dataset_m, aes(x = Sample_ID, name = Pop_ID, Site = Loc_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+        facet_grid(~Loc_ID, scales = "free_x") +
+        scale_y_continuous(limits = c(0, 1.06), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+        scale_fill_manual("Cluster", values = Colours()) +
+        labs(y = "Admixture index [%]", title = input$barplot_title, colour = "Collection site", shape = "Collection site") +
+        theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1), axis.ticks = element_line(size = 0.3), strip.text = element_text(size = input$axis_title_size * 2), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+    } else if (input$group_barplot_by == "Pop_ID & Loc_ID") {
+      p <- ggplot() +
+        geom_bar(data = Dataset_m, aes(x = Sample_ID, name = Pop_ID, Site = Loc_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+        facet_grid(Pop_ID ~ Loc_ID, scales = "free_x") +
+        scale_y_continuous(limits = c(0, 1.06), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+        scale_fill_manual("Cluster", values = Colours()) +
+        labs(y = "Admixture index [%]", title = input$barplot_title, colour = "Collection site", shape = "Collection site") +
+        theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1), axis.ticks = element_line(size = 0.3), strip.text = element_text(size = input$axis_title_size * 2), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+    }
+    if (input$location_marks == TRUE) {
+      p <- p + geom_point(data = Dataset, aes(x = Sample_ID, y = 1.05, shape = Loc_ID, colour = Loc_ID), size = 1) + scale_shape_manual(values = Collection_site_shape)
+    }
+  } else if ("Pop_ID" %in% colnames(Dataset) && !"Loc_ID" %in% colnames(Dataset)) {
+    numColors <- length(levels(Dataset_m$Pop_ID))
+    Pop_Col <- distinctColorPalette(k = numColors)
+    names(Pop_Col) <- levels(Dataset_m$Pop_ID)
+    Palette_Match <- as.data.frame(Pop_Col, stringsAsFactors = FALSE)
+    Palette_Match$Pop_ID <- rownames(Palette_Match)
+    y <- split(Dataset_m, f = Dataset_m$Cluster)
+    Pop_ID <- data.frame(Pop_ID = y$`1`$Pop_ID)
+    vec <- c(Palette_Match$Pop_Col[match(Pop_ID$Pop_ID, Palette_Match$Pop_ID)])
+    if (input$group_barplot_by == "-----") {
+      p <- ggplot() +
+        geom_bar(data = Dataset_m, aes(x = Sample_ID, name = Pop_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+        scale_y_continuous(limits = c(0, 1.01), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+        scale_fill_manual("Cluster", values = Colours()) +
+        labs(y = "Admixture index [%]", title = input$barplot_title) +
+        theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1, colour = vec), axis.ticks = element_line(size = 0.3), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+    } else if (input$group_barplot_by == "Pop_ID") {
+      facet_formula <- as.formula(paste("~", input$group_barplot_by))
+      p <- ggplot() +
+        geom_bar(data = Dataset_m, aes(x = Sample_ID, name = Pop_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+        facet_grid(facet_formula, scales = "free_x") +
+        scale_y_continuous(limits = c(0, 1.01), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+        scale_fill_manual("Cluster", values = Colours()) +
+        labs(y = "Admixture index [%]", title = input$barplot_title) +
+        theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1), axis.ticks = element_line(size = 0.3), strip.text = element_text(size = input$axis_title_size * 2), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+    }
+  } else if ("Loc_ID" %in% colnames(Dataset) && !"Pop_ID" %in% colnames(Dataset)) {
+    if (input$group_barplot_by == "-----") {
+      p <- ggplot() +
+        geom_bar(data = Dataset_m, aes(x = Sample_ID, Site = Loc_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+        scale_y_continuous(limits = c(0, 1.06), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+        scale_fill_manual("Cluster", values = Colours()) +
+        labs(y = "Admixture index [%]", title = input$barplot_title, colour = "Collection site", shape = "Collection site") +
+        theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1), axis.ticks = element_line(size = 0.3), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+    } else if (input$group_barplot_by == "Loc_ID") {
+      facet_formula <- as.formula(paste("~", input$group_barplot_by))
+      p <- ggplot() +
+        geom_bar(data = Dataset_m, aes(x = Sample_ID, Site = Loc_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+        facet_grid(facet_formula, scales = "free_x") +
+        scale_y_continuous(limits = c(0, 1.06), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+        scale_fill_manual("Cluster", values = Colours()) +
+        labs(y = "Admixture index [%]", title = input$barplot_title, colour = "Collection site", shape = "Collection site") +
+        theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1), axis.ticks = element_line(size = 0.3), strip.text = element_text(size = input$axis_title_size * 2), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+    }
+    if (input$location_marks == TRUE) {
+      p <- p + geom_point(data = Dataset, aes(x = Sample_ID, y = 1.05, shape = Loc_ID, colour = Loc_ID), size = 1) + scale_shape_manual(values = Collection_site_shape)
+    }
+  } else if (all(!c("Pop_ID", "Loc_ID") %in% colnames(Dataset))) {
+    p <- ggplot() +
+      geom_bar(data = Dataset_m, aes(x = Sample_ID, y = Q, fill = Cluster), stat = "identity", colour = "black", size = 0.2, position = input$barpos) +
+      scale_y_continuous(limits = c(0, 1.06), breaks = c(seq(from = 0, to = 1, by = 0.1))) +
+      scale_fill_manual("Cluster", values = Colours()) +
+      labs(y = "Admixture index [%]", title = input$barplot_title, colour = "Collection site", shape = "Collection site") +
+      theme(axis.title = element_text(size = input$axis_title_size * 2), axis.text.y = element_text(size = input$y_label_size), axis.text.x = element_text(size = input$x_label_size, angle = input$x_label_angle, hjust = 1), axis.ticks = element_line(size = 0.3), plot.title = element_text(size = input$axis_title_size * 2, hjust = 0.5), legend.title = element_text(size = input$axis_title_size * 2))
+  }
+})
+str_plot
