@@ -624,6 +624,7 @@ zoo_roh_thin_test2_results <- read.table("zoo_roh_thin_test2.hom.indiv", header 
 #wild -- populate dataframe with ID's and percent genome in ROH for each parameter run
 roh.df <- wild_smith_results$IID #populate ID's
 roh.df <- as.data.frame(roh.df) #create the data frame
+roh.df$pop_id <- w_pop_id$pop_id #adding population id information
 roh.df$Smith_full <- ((wild_smith_results$KB*1000)/2425730029)*100 #unthinned smith param
 roh.df$Saremi_full <- ((wild_saremi_results$KB*1000)/2425730029)*100 #unthinned saremi param
 roh.df$Saremi_thin <- ((wild_saremi_thin_results$KB*1000)/2425730029)*100 #thinned saremi param
@@ -638,6 +639,31 @@ roh.df$Composite_thin2 <- ((wild_roh_comp2_results$KB*1000)/2425730029)*100
 ##writing as csv
 write.csv(roh.df, "wild_roh_percentgenome.csv")
 
+#average % genome in roh by population
+population_mean_roh <- roh.df %>%
+  group_by(pop_id) %>%
+  summarise(Average = mean(Thin_test2, na.rm = TRUE),
+            Count = n(),
+            StdDev = sd(Thin_test2, na.rm = TRUE),
+            StdError = (sd(Thin_test2, na.rm = TRUE)/sqrt(n())))
+#plot
+ggplot() +
+  geom_boxplot(data = roh.df,
+               aes(x = pop_id, y = Thin_test2),
+               width = 0.5, alpha = 0.7, outlier.shape = 1) +
+  geom_point(data = population_mean_roh,
+             aes(x = pop_id, y = Average),
+             color = "red", size = 3) +
+  geom_errorbar(data = population_mean_roh,
+                aes(x = pop_id, ymin = Average - StdError, ymax = Average + StdError),
+                width = 0.2, color = "red", linewidth = 1) +
+  labs(title = "Distibution of ROH % by Population",
+       x = "Population",
+       y = "Percent genome in ROH") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
+        axis.title = element_text(face = "bold"))
+
 #zoo -- populate dataframe with ID's and percent genome for each parameter test
 roh.df.z <- zoo_saremi_results$IID #populate ID's
 roh.df.z <- as.data.frame(roh.df.z) #create the data frame
@@ -647,13 +673,24 @@ write.csv(roh.df.z, "zoo_roh_percentgenome.csv")
 
 ####proportion of ROH lengths
 #read in .hom files
-w_roh_t2 <- read.table("wild_roh_thin_test2.hom", header = T)
+w_roh_t2 <- read.table("wild_roh_thin_test2.hom", header = T) #thin test 2
+w_roh_ct <- read.table("wild_thin_composite1.hom", header = T) #composite test 1
+#adding population information
+colnames(w_pop_id_df)[1] <- "IID"
+w_roh_t2 <- merge(w_roh_t2, w_pop_id_df, by = "IID", all = TRUE)
 #calculate length in Mb -- kb to mb conversion
 w_roh_t2$Length_MB <- w_roh_t2$KB/1000
+w_roh_ct$Length_MB <- w_roh_ct$KB/1000
 #look at resulting distribution
-hist(w_roh_t2$Length_MB, main="Distribution of ROH lengths", xlab="Length (MB)")
+dev.off()
+hist(w_roh_t2$Length_MB, main="Distribution of ROH lengths -- T2", xlab="Length (MB)")
+hist(w_roh_ct$Length_MB, main = "Distribution of ROH lengths -- CT", xlab = "Length (MB)")
 #define length categories
 w_roh_t2$Category <- cut(w_roh_t2$Length_MB,
+                         breaks = c(0, 1, 2, 4, 6, 8, Inf),
+                         labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", ">8Mb"),
+                         include.lowest = TRUE)
+w_roh_ct$Category <- cut(w_roh_ct$Length_MB,
                          breaks = c(0, 1, 2, 4, 6, 8, Inf),
                          labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", ">8Mb"),
                          include.lowest = TRUE)
@@ -667,11 +704,73 @@ w_total_summary <- w_roh_t2 %>%
     Proportion_Length = sum(Length_MB)/w_total_length_all,
     Proportion_count = n()/nrow(w_roh_t2)
   )
+w_total_length_all_ct <- sum(w_roh_ct$Length_MB)
+w_total_summary_ct <- w_roh_ct %>%
+  group_by(Category) %>%
+  summarise(
+    Count = n(),
+    Total_Length_MB = (sum(Length_MB)),
+    Proportion_Length = sum(Length_MB)/w_total_length_all_ct,
+    Proportion_count = n()/nrow(w_roh_ct)
+  )
 #save results
 write.csv(w_total_summary, "overall_roh_length_proportions_t2.csv")
+write.csv(w_total_summary_ct, "overall_roh_length_proportions_ct1.csv")
 
+#summary by individual
+w_individual_summary <- w_roh_t2 %>%
+  group_by(IID) %>%
+  summarize(
+    Total_ROH_Count = n(),
+    Total_ROH_Length_MB = sum(Length_MB),
+    Mean_ROH_Length_MB = mean(Length_MB),
+    Median_ROH_Length_MB = median(Length_MB),
+    Min_ROH_Length_MB = min(Length_MB),
+    Max_ROH_Length_MB = max(Length_MB)
+  )
 #proportions by individual
+w_individual_category_summary <- w_roh_t2 %>%
+  group_by(IID, Category) %>%
+  summarize(
+    Count = n(),
+    Total_Length_MB = sum(Length_MB),
+    .groups = "drop"
+  ) %>%
+  group_by(IID) %>%
+  mutate(
+    Individual_Total_Length = sum(Total_Length_MB),
+    Proportion_Length = Total_Length_MB / Individual_Total_Length,
+    Proportion_Count = Count / sum(Count)
+  )
+#summary by population 
+population_category_counts <- w_roh_t2 %>%
+  group_by(pop, Category)  %>%
+  summarise(Count = n(), Total_Length_MB = sum(Length_MB), .groups = "drop")
+#proportion by population
+population_category_proportions <- population_category_counts %>%
+  group_by(pop) %>%
+  mutate(Proportion_Count = Count/sum(Count),
+         Proportion_Length = Total_Length_MB/sum(Total_Length_MB))
 
+#normalizing data for direct comparison
+individuals_per_pop <- data.frame(
+  pop = c("Ranch", "Refuge"),
+  n_individuals = c(26, 18)
+)
+
+normalized_roh <- population_category_counts %>%
+  left_join(individuals_per_pop, by = "pop") %>%
+  group_by(pop) %>%
+  mutate(
+    # Within-population proportions
+    Proportion_Count = Count / sum(Count),
+    Proportion_Length = Total_Length_MB / sum(Total_Length_MB),
+    
+    # Per-individual normalized metrics
+    Avg_ROH_Count_Per_Individual = Count / n_individuals,
+    Avg_ROH_Length_MB_Per_Individual = Total_Length_MB / n_individuals
+  ) %>%
+  ungroup()
 ####Visualizing ROH --karyotype plot -- wild####
 #install packages
 if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -842,7 +941,7 @@ plot_population_roh_smoothed <- function(population_id, output_file = NULL, wind
     smoothed_gr <- smoothed_gr[start(smoothed_gr) %% 1000 == 0]  # sample every 1kb
     
     # Plot line track
-    kpPlotLines(pop_kp, data = smoothed_gr, y = mcols(smoothed_gr)$score, col = "red", r0 = 0.5, r1 = 0.8)
+    kpLines(pop_kp, chr = as.character(seqnames(smoothed_gr)), x = start(smoothed_gr), y = mcols(smoothed_gr)$score, col = "red", r0 = 0.5, r1 = 0.8)
   }
   
   if (!is.null(output_file)) {
@@ -883,7 +982,7 @@ for (pop in unique_pops) {
   output_file <- paste0("wild_roh_density_plots/pop_", safe_name, "_roh_density.pdf")
   plot_population_roh_smoothed(population_id = pop, output_file = output_file)
 }
-
+dev.off()
 ###ROH overlap plot
 
 ################################################################################
