@@ -985,32 +985,6 @@ for (pop in unique_pops) {
 dev.off()
 ###ROH overlap plot
 
-####Fst -- Weir and Cockerham 1984####
-#installing packages
-install.packages("tidyverse")
-library(tidyverse)
-install.packages("qqman")
-library(qqman)
-###populations need to be filtered separately, and then merged
-##No MAF and careful with HWE in filtering
-#wild splitting and filtering
-    #dispersers are filtered with individuals at their current population, not natal population
-system("plink --bfile Wild_BaseFilter_AllChrom --keep ranch_fst_subset.txt --allow-extra-chr --chr-set 18 --make-bed --out Ranch_base_Fst")
-system("plink --bfile Wild_BaseFilter_AllChrom --keep refuge_fst_subset.txt --allow-extra-chr --chr-set 18 --make-bed --out Refuge_base_Fst")
-
-system("plink --bfile Ranch_base_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out Ranch_geno1_hwe_Fst")
-system("plink --bfile Ranch_geno1_hwe_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Ranch_fst_filter")
-
-system("plink --bfile Refuge_base_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out Refuge_geno1_hwe_Fst")
-system("plink --bfile Refuge_geno1_hwe_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Refuge_fst_filter")
-
-#merging
-system("plink2 --bfile Ranch_fst_filter --chr-set 18 --allow-extra-chr --set-all-var-ids @:#:$1,$2 --new-id-max-allele-len 323 --make-bed --out Ranch_fst_uniqueID_short")
-system("plink2 --bfile Refuge_fst_filter --chr-set 18 --allow-extra-chr --set-all-var-ids @:#:$1,$2 --new-id-max-allele-len 323 --make-bed --out Refuge_fst_uniqueID_short")
-system("plink --bfile Ranch_fst_uniqueID_short --chr-set 18 --allow-extra-chr --keep-allele-order --bmerge Refuge_fst_uniqueID_short --make-bed --out Wild_Fst_input")
-
-
-
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
 install.packages("adegenet")
