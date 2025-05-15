@@ -249,25 +249,31 @@ system("plink --bfile Wild_refiltered --allow-extra-chr --pca --chr-set 18 --out
 pca.data.wild <- read.table("pca_wild.eigenvec", header=FALSE) #load pca results from the eigenvec file
 wild_origins <- read.csv("wild_origins.csv", header = TRUE) #read in origins file
 pca.data.wild.origins <- left_join(pca.data.wild, wild_origins, by = "V2") #append origin data to pca data
+pca.data.wild.origins <- pca.data.wild.origins %>%
+  mutate(V2 = gsub("-.*", "", V2))
 
-ggplot(pca.data.wild.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with individual ID's and by origin
-  geom_point() +
-  geom_text(aes(label=V2), vjust=1, hjust=1, size=2) + #V2 is ID
-  scale_color_manual(name = "Origin", values = c("Refuge" = "dodgerblue3", "Ranch" = "coral2")) +
+ggplot(pca.data.wild.origins, aes(x=V3,y=V4)) +  #plot with individual ID's and by origin
+  geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 2) +
+  geom_text(aes(label=V2), vjust=1, hjust=1, size=2, color = "black") + #V2 is ID
+  scale_color_manual(name = "Origin", values = c("Refuge" = "#01004c", "Ranch" = "orchid")) +
+  scale_shape_manual(name = "Origin", values = c("Refuge" = 19, "Ranch" = 17)) +
   labs(x = "PC1", y = "PC2", title = "Wild PCA by Individual") +
   theme_minimal()
 
-#PCA on all ocelots -- need to make new subset?
-system("plink --bfile LP_Biallelic_AllChrom --pca --chr-set 18 --out pca_LP") #run the pca code, specified the number of chromosomes
+#PCA on all ocelots
+system("plink --bfile LEPA_refiltered --pca --chr-set 18 --allow-extra-chr --out pca_LP") #run the pca code, specified the number of chromosomes
 pca.data.LP <- read.table("pca_LP.eigenvec", header=FALSE) #load pca results from the eigenvec file
 ocelot.origins <- read.csv("LP_origins.csv", header = TRUE) #read in origins file
 pca.data.ocelot.origins <- left_join(pca.data.LP, ocelot.origins, by = "V2") #append origin data to pca data
+pca.data.ocelot.origins <- pca.data.ocelot.origins %>%
+  mutate(V2 = gsub("-.*", "", V2))
 
 ggplot(pca.data.ocelot.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with individual ID's and by origin
-  geom_point() +
-  geom_text(aes(label=V2), vjust=1, hjust=1, size=2) + #V2 is ID
-  scale_color_manual(name = "Origin", values = c("Refuge" = "purple4", "Ranch" = "orchid1", 
-                                                 "Brazilian" = "dodgerblue3", "Generic" = "coral2")) +
+  geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 2) +
+  scale_color_manual(name = "Origin", values = c("Refuge" = "purple4", "Ranch" = "orchid", 
+                                                 "Brazilian" = "#3B967f", "Generic" = "#D66857")) +
+  scale_shape_manual(name = "Origin", values = c("Refuge" = 19, "Ranch" = 17,
+                                                 "Brazilian" = 15, "Generic" = 8)) +
   labs(x = "PC1", y = "PC2", title = "Ocelot PCA by Individual") +
   theme_minimal()
 
