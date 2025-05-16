@@ -201,6 +201,11 @@ system("plink2 --bfile wild_dapc_thin --chr-set 18 --allow-extra-chr --export vc
 system("plink2 --bfile zoo_dapc_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out zoo_dapc_thin")
 system("plink2 --bfile lepa_dapc_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_dapc_thin")
 
+#thinning and writing vcf for samba -- unfiltered dataset
+system("plink --bfile LEPA_BaseFilter_Allchrom --chr-set 18 --allow-extra-chr --bp-space 1000 --make-bed --out lepa_base_thin")
+#export as vcf
+system("plink2 --bfile lepa_base_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_samba_nofilt_thin")
+
 #########################################################
 #Data Analysis
 ####Data exploration and quality checks####
