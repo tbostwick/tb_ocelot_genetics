@@ -434,16 +434,11 @@ venn.diagram(
 #identifying and saving snps selected by all categories
 all_common <- intersect(intersect(qvalue_snps, BH_snps), BC_snps)
 n_all_common <- length(all_common)
-write.csv(data.frame(SNP_ID = all_common), "venn_output/lepa_adaptive_snps_allmethods.csv", row.names = FALSE)
+write.table(all_common, "venn_output/lepa_adaptive_snps_allmethods.txt", row.names = FALSE, col.names = FALSE, quote = FALSE)
 
 ####extracting candidate loci and creating neutral and adaptive loci sets####
-#load in candidate snps snps and create df
-candidate_loci_df <- read.csv("lepa_adaptive_snps_allmethods.csv")
-candidate_loci <- candidate_loci_df$SNP_ID
-
-#get all snp ID's from vcf file
-all_snp_id <- lepa_vcf@fix[,"ID"]
-
+system("plink2 --vcf lepa_thinned_ids.vcf.gz --chr-set 18 --allow-extra-chr --extract lepa_adaptive_snps_allmethods.txt --export vcf bgz --out lepa_adaptive")
+system("plink2 --vcf lepa_thinned_ids.vcf.gz --chr-set 18 --allow-extra-chr --exclude lepa_adaptive_snps_allmethods.txt --export vcf bgz --out lepa_neutral")
 
 
 
