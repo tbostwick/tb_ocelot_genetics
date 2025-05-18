@@ -74,6 +74,12 @@ library(VennDiagram)
 library(grDevices)
 library(dplyr)
 ####loading and prepping data####
+#adding snp ids prior to analysis
+system("plink2 --vcf lepa_dapc_thin.vcf.gz --chr-set 18 --allow-extra-chr --set-all-var-ids @_# --new-id-max-allele-len 20 --make-bed --out lepa_thinned_ids") #set variant ID -- shorter?
+system("plink2 --bfile lepa_thinned_ids --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_thinned_ids")
+#using the unique ID file generated earlier to avoid a merging error due to same variant names
+
+
 z_vcf <- read.vcfR("zoo_dapc_thin.vcf.gz", verbose = TRUE)
 zoo_genlight <- vcfR2genlight(z_vcf)
 zoo_genlight
@@ -82,7 +88,7 @@ w_vcf <- read.vcfR("wild_dapc_thin.vcf.gz", verbose = TRUE)
 wild_genlight <- vcfR2genlight(w_vcf)
 wild_genlight
 
-lepa_vcf <- read.vcfR("lepa_dapc_thin.vcf.gz", verbose = TRUE)
+lepa_vcf <- read.vcfR("lepa_thinned_ids.vcf.gz", verbose = TRUE)
 lepa_genlight <- vcfR2genlight(lepa_vcf)
 lepa_genlight
 
@@ -269,7 +275,7 @@ venn.diagram(
 ##################################################################################################################
 #all lepa outlier loci tests
 ####PCA -- lepa####
-l.pca.input <- read.pcadapt("lepa_dapc_thin.vcf.gz", type = "vcf") #making the vcf readable by pcaadapt
+l.pca.input <- read.pcadapt("lepa_thinned_ids.vcf.gz", type = "vcf") #making the vcf readable by pcaadapt
 lepa_pca <- pcadapt(input = l.pca.input, K=30) #running pca with high k to check
 plot(lepa_pca, option = "screeplot", plt.pkg = "ggplot") #plotting pca screenplot
 plot(lepa_pca, option="screeplot", K=10, plt.pkg = "ggplot") #zooming in on k10
@@ -431,5 +437,17 @@ n_all_common <- length(all_common)
 write.csv(data.frame(SNP_ID = all_common), "venn_output/lepa_adaptive_snps_allmethods.csv", row.names = FALSE)
 
 ####extracting candidate loci and creating neutral and adaptive loci sets####
-#load in identified snps and create df
+#load in candidate snps snps and create df
 candidate_loci_df <- read.csv("lepa_adaptive_snps_allmethods.csv")
+candidate_loci <- candidate_loci_df$SNP_ID
+
+#get all snp ID's from vcf file
+all_snp_id <- lepa_vcf@fix[,"ID"]
+
+
+
+
+
+
+
+
