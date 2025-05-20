@@ -446,3 +446,43 @@ system("plink2 --vcf lepa_thinned_ids.vcf.gz --chr-set 18 --allow-extra-chr --ex
 
 
 
+
+####Creating distance matrices for the trees####
+setwd("C:/Users/kutab016/Documents/TB_Files/1_Thesis/3_Data/6_Cleaned Data/Genomics/1_WorkingGenomicsFiles/MEGA_adaptive_neutral")
+install.packages("StAMPP")
+install.packages("ape")
+BiocManager::install("ggtree")
+library(ggtree)
+library(tidyverse)
+library(StAMPP)
+library(ape)
+#load in vcfs
+adaptive_snps <- read.vcfR("lepa_adaptive.vcf.gz")
+neutral_snps <- read.vcfR("lepa_neutral.vcf.gz")
+#convert to genlight
+adaptive_gl <- vcfR2genlight(adaptive_snps)
+neutral_gl <- vcfR2genlight(neutral_snps)
+#adding populations
+l_pop <- read.csv("lepa_origins.csv")
+l_df <- as.data.frame(l_pop) #creating dataframe from origins
+l_df$ID <- paste0("24040DeY_", l_df$ID) #adding the prefix to the sample names
+
+pop_lookup <- setNames(as.character(l_df$Pop), l_df$ID)# Create a lookup table
+pop(adaptive_gl) <- pop_lookup[indNames(adaptive_gl)]# Directly assign populations based on IDs
+pop(adaptive_gl) <- factor(pop(adaptive_gl), levels = levels(pop(adaptive_gl)))# Convert to factor with original levels
+pop(neutral_gl) <- pop_lookup[indNames(neutral_gl)]# Directly assign populations based on IDs
+pop(neutral_gl) <- factor(pop(neutral_gl), levels = levels(pop(neutral_gl)))
+
+
+#calculate Nei's genetic distance
+adaptive_dist <- stamppNeisD(adaptive_gl, pop = FALSE)
+neutral_dist <- stamppNeisD(neutral_gl, pop = FALSE)
+#use ape to make trees
+adapt_dist_ob <- as.dist(adaptive_dist)
+adaptive_nj_tree <- nj(adapt_dist_ob)
+plot(adaptive_nj_tree)
+neut_dist_ob <- as.dist(neutral_dist)
+neut_nj_tree <- nj(neut_dist_ob)
+plot(neut_nj_tree)
+
+#make nice plots of the trees
