@@ -61,6 +61,12 @@ write.table(bim, "LEPA_rf_standard.bim", quote = FALSE, sep = "\t",
             row.names = FALSE, col.names = FALSE)
 #have plink write new bim bam bed files with the new bim file we created
 system("plink --bed LEPA_refiltered.bed --bim LEPA_rf_standard.bim --fam LEPA_refiltered.fam --make-bed --out LEPA_rf_standard")
+#write vcf
+system("plink2 --bfile LEPA_rf_standard --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_rf_standard")
+
+##subset ranch population for admixture
+system("plink --bfile LEPA_rf_standard --chr-set 18 --allow-extra-chr --keep ranch_admixture_subset.txt --make-bed --out ranch_admix_standard")
+
 
 ##Zoo filtering
 #filter MAF and missingness and hwe
@@ -134,36 +140,16 @@ system("plink2 --bfile Zoo_refiltered --chr-set 18 --keep-allele-order --allow-e
 system("plink --bfile Zoo_refiltered_uniqueID --chr-set 18 --keep-allele-order --allow-extra-chr --memory 24000 --indep 50 5 2 --out Zoo_RF_LDpruned_0.5") #makes an out and in files of SNps to keep and SNPs to remove
 system("plink --bfile Zoo_refiltered_uniqueID --extract Zoo_RF_LDpruned_0.5.prune.in --chr-set 18 --allow-extra-chr --memory 24000 --make-bed --out Zoo_LDpruned_0.5_RF") #extract SNPs and create new files
       #reduces SNPS from 27003602 to 4,475,851
-#test effects with PCA
-system("plink --bfile Zoo_LDpruned_0.5_RF --allow-extra-chr --pca --chr-set 18 --out pca_zoo_LD_0.5") #run the pca code, specified the number of chromosomes
-pca.zoo_ld0.5 <- read.table("pca_zoo_LD_0.5.eigenvec", header=FALSE) #load pca results from the eigenvec file
-zoo_origins <- read.csv("zoo_origins.csv", header = TRUE) #read in origin metadata
-pca.zoo_ld0.5.origins <- left_join(pca.zoo_ld0.5, zoo_origins, by = "V2") #append origin data to pca data
-ggplot(pca.zoo_ld0.5.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with individual ID's and by origin
-  geom_point() +
-  geom_text(aes(label=V2), vjust=1, hjust=1, size=2) + #V2 is ID
-  scale_color_manual(name = "Origin", values = c("Generic" = "dodgerblue3", "Brazilian" = "coral2")) +
-  labs(x = "PC1", y = "PC2", title = "Zoo PCA by Individual") +
-  theme_minimal()
-#Seems to invert PC1 and PC2
+#write vcf
+system("plink2 --bfile Zoo_LDpruned_0.5_RF --chr-set 18 --allow-extra-chr --export vcf bgz --out Zoo_LDpruned_0.5_RF")
 
 ##Wild LD Pruning
 system("plink2 --bfile Wild_refiltered --chr-set 18 --keep-allele-order --allow-extra-chr --set-all-var-ids @:#$r,$a --new-id-max-allele-len 323 --make-bed --out Wild_refiltered_uniqueID") #set variant ID
 system("plink --bfile Wild_refiltered_uniqueID --chr-set 18 --keep-allele-order --allow-extra-chr --memory 24000 --indep 50 5 2 --out Wild_RF_LDpruned_0.5") #makes an out and in files of SNps to keep and SNPs to remove
 system("plink --bfile Wild_refiltered_uniqueID --extract Wild_RF_LDpruned_0.5.prune.in --chr-set 18 --allow-extra-chr --memory 24000 --make-bed --out Wild_LDpruned_0.5_RF") #extract SNPs and create new files
     #reduces SNPS from 12146279 to 1422635
-#test effects with PCA
-system("plink --bfile Wild_LDpruned_0.5_RF --allow-extra-chr --pca --chr-set 18 --out pca_wild_LD_0.5") #run the pca code, specified the number of chromosomes
-pca.wild_ld0.5 <- read.table("pca_wild_LD_0.5.eigenvec", header=FALSE) #load pca results from the eigenvec file
-wild_origins <- read.csv("wild_origins.csv", header = TRUE) #read in origins file
-pca.wild.origins_ld0.5 <- left_join(pca.wild_ld0.5, wild_origins, by = "V2") #append origin data to pca data
-ggplot(pca.wild.origins_ld0.5, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with individual ID's and by origin
-  geom_point() +
-  geom_text(aes(label=V2), vjust=1, hjust=1, size=2) + #V2 is ID
-  scale_color_manual(name = "Origin", values = c("Refuge" = "dodgerblue3", "Ranch" = "coral2")) +
-  labs(x = "PC1", y = "PC2", title = "Wild PCA by Individual") +
-  theme_minimal()
-#seems to invert PC1 and PC2
+#write vcf
+system("plink2 --bfile Wild_LDpruned_0.5_RF --chr-set 18 --allow-extra-chr --export vcf bgz --out Wild_LDpruned_0.5_RF")
 
 ####subset data after pruning into populations and origins
 #create ranch file with dispersers included
@@ -1137,3 +1123,34 @@ w_k2plot <-
   guides(fill = "none")
 w_k2plot
 ggsave("wild_k2_admixture_altcol.png", w_k2plot, width = 15, height = 8, bg = "white")
+
+################################################################################
+#fst prep for vcftools
+###populations need to be filtered separately, and then merged
+##No MAF and careful with HWE in filtering
+#wild splitting and filtering
+#dispersers are filtered with individuals at their current population, not natal population
+system("plink --bfile Wild_BaseFilter_AllChrom --keep ranch_fst_subset.txt --allow-extra-chr --chr-set 18 --make-bed --out Ranch_base_Fst")
+system("plink --bfile Wild_BaseFilter_AllChrom --keep refuge_fst_subset.txt --allow-extra-chr --chr-set 18 --make-bed --out Refuge_base_Fst")
+system("plink --bfile Zoo_BaseFilter_Allchrom --keep generic_fst_subset.txt --allow-extra-chr --chr-set 18 --make-bed --out Generic_base_Fst")
+system("plink --bfile Zoo_BaseFilter_Allchrom --keep brazilian_fst_subset.txt --allow-extra-chr --chr-set 18 --make-bed --out Brazilian_base_Fst")
+
+system("plink --bfile Ranch_base_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out Ranch_geno1_hwe_Fst")
+system("plink --bfile Ranch_geno1_hwe_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Ranch_fst_filter")
+
+system("plink --bfile Refuge_base_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out Refuge_geno1_hwe_Fst")
+system("plink --bfile Refuge_geno1_hwe_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Refuge_fst_filter")
+
+system("plink --bfile Generic_base_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out generic_geno1_hwe_Fst")
+system("plink --bfile generic_geno1_hwe_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Generic_fst_filter")
+
+system("plink --bfile Brazilian_base_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out Brazilian_geno1_hwe_Fst")
+system("plink --bfile Brazilian_geno1_hwe_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Brazilian_fst_filter")
+#zoo splitting and filtering
+#exporting as vcf's
+system("plink2 --bfile Ranch_fst_filter --chr-set 18 --allow-extra-chr --export vcf bgz --out ranch_fst_in")
+system("plink2 --bfile Refuge_fst_filter --chr-set 18 --allow-extra-chr --export vcf bgz --out refuge_fst_in")
+system("plink2 --bfile Generic_fst_filter --chr-set 18 --allow-extra-chr --export vcf bgz --out generic_fst_in")
+system("plink2 --bfile Brazilian_fst_filter --chr-set 18 --allow-extra-chr --export vcf bgz --out brazilian_fst_in")
+system("plink2 --bfile Zoo_refiltered --chr-set 18 --allow-extra-chr --export vcf bgz --out zoo_refiltered")
+system("plink2 --bfile Wild_refiltered --chr-set 18 --allow-extra-chr --export vcf bgz --out wild_refiltered")
