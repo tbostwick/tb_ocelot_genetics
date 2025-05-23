@@ -20,29 +20,17 @@ library(snpStats)
 ####Make bed bim fam files from vcf####
 system("plink --vcf 24041DeY-snp_filter_dp_gq__AllChrom_.vcf.gz --keep-allele-order --allow-extra-chr --chr-set 18 --make-bed --out SNP_dp_gq_AllChrom_AllInd")
 
-####Subsetting data by origin -- separate zoo and wild for filtering####
-#invokes plink, calls the original file, "--keep" and then feed it a txt file with only the individuals you want
-#tell it the number of chromosomes, make new bed bim fam files, and then what the output should be named
-#create full LEPA file
-system("plink --bfile SNP_dp_gq_AllChrom_AllInd --keep pop_subset_ocelot.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out LEPA_BaseFilter_Allchrom")
-#create zoo file
-system("plink --bfile SNP_dp_gq_AllChrom_AllInd --keep pop_subset_zoo.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Zoo_BaseFilter_Allchrom")
-#create wild ocelots, no duplicates file
-system("plink --bfile SNP_dp_gq_AllChrom_AllInd --keep pop_subset_wild_remove_dups.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Wild_BaseFilter_AllChrom")
+####FINAL FILTERING FOR FUTURE ANALYSES, SUBSETTING-FILTERING-EXPORTING####
+###working directory
+setwd("C:/Users/kutab016/Documents/TB_Files/1_Thesis/3_Data/6_Cleaned Data/Genomics/1_WorkingGenomicsFiles/SNP_Manu_filters")
 
-####Filtering -- MAF 0.05 MISS 90 Bialleic####
-##LEPA filtering -- wild and zoo together
-#filter MAF and missingness and hwe
-system("plink --bfile LEPA_BaseFilter_Allchrom --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_maf05_miss90_hwe")
-#filter biallelic
-system("plink --bfile LEPA_maf05_miss90_hwe --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out LEPA_refiltered")
-###fixing chromosome names -- lepa
+###create bim bed fam files from original vcf
+system("plink --vcf 24041DeY-snp_filter_dp_gq__AllChrom_.vcf.gz --keep-allele-order --allow-extra-chr --chr-set 18 --make-bed --out SNP_dp_gq_AllChrom_AllInd")
+
+###fix chromosome names
 #read in bim file
-bim <- read.table("LEPA_refiltered.bim", stringsAsFactors = FALSE)
+bim <- read.table("SNP_dp_gq_AllChrom_AllInd.bim", stringsAsFactors = FALSE)
 colnames(bim) <- c("chr", "snp", "cm", "pos", "a1", "a2")
-#check for duplicates -- keep getting duplicate error in other methods
-table(duplicated(bim$snp))
-sum(bim$snp == ".")
 #get the unique chr names
 unique_chrs <- unique(bim$chr)
 print(unique_chrs)
@@ -57,55 +45,81 @@ for (i in 1:nrow(chr_map)) {
   bim$chr[bim$chr == chr_map$old_chr[i]] <- chr_map$new_chr[i]
 }
 #write updated bim file
-write.table(bim, "LEPA_rf_standard.bim", quote = FALSE, sep = "\t", 
+write.table(bim, "SNP_AllInd_unfilt_chrfix.bim", quote = FALSE, sep = "\t", 
             row.names = FALSE, col.names = FALSE)
 #have plink write new bim bam bed files with the new bim file we created
-system("plink --bed LEPA_refiltered.bed --bim LEPA_rf_standard.bim --fam LEPA_refiltered.fam --make-bed --out LEPA_rf_standard")
+system("plink --bed SNP_dp_gq_AllChrom_AllInd.bed --bim SNP_AllInd_unfilt_chrfix.bim --fam SNP_dp_gq_AllChrom_AllInd.fam --make-bed --out SNP_AllInd_unfilt_chrfix")
+
+###give snp ids
+system("plink2 --bfile SNP_AllInd_unfilt_chrfix --chr-set 18 --set-all-var-ids @_# --new-id-max-allele-len 20 --make-bed --out SNP_AllInd_uniqueID")
+
+###subset populations
+    #for F, Fis, nucleotide, and He/o, populations will be filtered completely separate
+    #for ROH, admixture, PCA, and outlier, populations will be filtered completely together
+system("plink --bfile SNP_AllInd_uniqueID --keep ranch_subset.txt --chr-set 18 --make-bed --out Ranch_unfilt")
+system("plink --bfile SNP_AllInd_uniqueID --keep refuge_subset.txt --chr-set 18 --make-bed --out Refuge_unfilt")
+system("plink --bfile SNP_AllInd_uniqueID --keep generic_subset.txt --chr-set 18 --make-bed --out Generic_unfilt")
+system("plink --bfile SNP_AllInd_uniqueID --keep brazilian_subset.txt --chr-set 18 --make-bed --out Brazilian_unfilt")
+system("plink --bfile SNP_AllInd_uniqueID --keep pop_subset_ocelot.txt --chr-set 18 --make-bed --out LEPA_unfilt")
+####apply filters -- maf, miss, hwe, biallelic> base, other adjustments can follow
+###subsetted populations
+##ranch
+system("plink --bfile Ranch_unfilt --chr-set 18 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out Ranch_maf05_miss90_hwe")
+system("plink --bfile Ranch_maf05_miss90_hwe --chr-set 18 --keep-allele-order --biallelic-only --make-bed --out Ranch_standard_final")
+
+##refuge
+system("plink --bfile Refuge_unfilt --chr-set 18 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out Refuge_maf05_miss90_hwe")
+system("plink --bfile Refuge_maf05_miss90_hwe --chr-set 18 --keep-allele-order --biallelic-only --make-bed --out Refuge_standard_final")
+
+##generic
+system("plink --bfile Generic_unfilt --chr-set 18 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out Generic_maf05_miss90_hwe")
+system("plink --bfile Generic_maf05_miss90_hwe --chr-set 18 --keep-allele-order --biallelic-only --make-bed --out Generic_standard_final")
+
+##brazilian
+system("plink --bfile Brazilian_unfilt --chr-set 18 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out Brazilian_maf05_miss90_hwe")
+system("plink --bfile Brazilian_maf05_miss90_hwe --chr-set 18 --keep-allele-order --biallelic-only --make-bed --out Brazilian_standard_final")
+
+###LEPA
+system("plink --bfile LEPA_unfilt --chr-set 18 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_maf05_miss90_hwe")
+system("plink --bfile LEPA_maf05_miss90_hwe --chr-set 18 --keep-allele-order --biallelic-only --make-bed --out LEPA_standard_final")
+
+####Export vcf's
+system("plink2 --bfile Ranch_standard_final --chr-set 18 --export vcf-4.2 bgz --out Ranch_standard_final")
+system("plink2 --bfile Refuge_standard_final --chr-set 18 --export vcf-4.2 bgz --out Refuge_standard_final")
+system("plink2 --bfile Generic_standard_final --chr-set 18 --export vcf-4.2 bgz --out Generic_standard_final")
+system("plink2 --bfile Brazilian_standard_final --chr-set 18 --export vcf-4.2 bgz --out Brazilian_standard_final")
+system("plink2 --bfile LEPA_standard_final --chr-set 18 --export vcf-4.2 bgz --out LEPA_standard_final")
+
+####FINAL FILTERING -- LINKAGE DISEQUILIBRIUM PRUNING####
+##Ranch
+system("plink --bfile Ranch_standard_final --chr-set 18 --keep-allele-order --indep 50 5 2 --out Ranch_LDpruned_0.5_out") #makes an out and in files of SNps to keep and SNPs to remove
+system("plink --bfile Ranch_standard_final --extract Ranch_LDpruned_0.5_out.prune.in --chr-set 18 --make-bed --out Ranch_LDpruned_05") #extract SNPs and create new files
 #write vcf
-system("plink2 --bfile LEPA_rf_standard --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_rf_standard")
+system("plink2 --bfile Ranch_LDpruned_05 --chr-set 18 --export vcf-4.2 bgz --out Ranch_LDpruned_05")
 
-##subset ranch population for admixture
-system("plink --bfile LEPA_rf_standard --chr-set 18 --allow-extra-chr --keep ranch_admixture_subset.txt --make-bed --out ranch_admix_standard")
+##Refuge
+system("plink --bfile Refuge_standard_final --chr-set 18 --keep-allele-order --indep 50 5 2 --out Refuge_LDpruned_0.5_out") #makes an out and in files of SNps to keep and SNPs to remove
+system("plink --bfile Refuge_standard_final --extract Refuge_LDpruned_0.5_out.prune.in --chr-set 18 --make-bed --out Refuge_LDpruned_05") #extract SNPs and create new files
+#write vcf
+system("plink2 --bfile Refuge_LDpruned_05 --chr-set 18 --export vcf-4.2 bgz --out Refuge_LDpruned_05")
 
+##Generic
+system("plink --bfile Generic_standard_final --chr-set 18 --keep-allele-order --indep 50 5 2 --out Generic_LDpruned_0.5_out") #makes an out and in files of SNps to keep and SNPs to remove
+system("plink --bfile Generic_standard_final --extract Generic_LDpruned_0.5_out.prune.in --chr-set 18 --make-bed --out Generic_LDpruned_05") #extract SNPs and create new files
+#write vcf
+system("plink2 --bfile Generic_LDpruned_05 --chr-set 18 --export vcf-4.2 bgz --out Generic_LDpruned_05")
 
-##Zoo filtering
-#filter MAF and missingness and hwe
-system("plink --bfile Zoo_BaseFilter_Allchrom --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out Zoo_maf05_miss90_hwe")
-#filter biallelic
-system("plink --bfile Zoo_maf05_miss90_hwe --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Zoo_refiltered")
-###fixing chromosome names -- zoo
-#read in bim file
-z_bim <- read.table("Zoo_refiltered.bim", stringsAsFactors = FALSE)
-colnames(z_bim) <- c("chr", "snp", "cm", "pos", "a1", "a2")
-#apply that to the bim file directly - using chr map made earlier
-for (i in 1:nrow(chr_map)) {
-  z_bim$chr[z_bim$chr == chr_map$old_chr[i]] <- chr_map$new_chr[i]
-}
-#write updated bim file
-write.table(z_bim, "Zoo_rf_standard.bim", quote = FALSE, sep = "\t", 
-            row.names = FALSE, col.names = FALSE)
-#have plink write new bim bam bed files with the new bim file we created
-system("plink --bed Zoo_refiltered.bed --bim Zoo_rf_standard.bim --fam Zoo_refiltered.fam --make-bed --out Zoo_rf_standard")
+##Brazilian
+system("plink --bfile Brazilian_standard_final --chr-set 18 --keep-allele-order --indep 50 5 2 --out Brazilian_LDpruned_0.5_out") #makes an out and in files of SNps to keep and SNPs to remove
+system("plink --bfile Brazilian_standard_final --extract Brazilian_LDpruned_0.5_out.prune.in --chr-set 18 --make-bed --out Brazilian_LDpruned_05") #extract SNPs and create new files
+#write vcf
+system("plink2 --bfile Brazilian_LDpruned_05 --chr-set 18 --export vcf-4.2 bgz --out Brazilian_LDpruned_05")
 
-##Wild filtering
-#filter MAF and missingness
-system("plink --bfile Wild_BaseFilter_AllChrom --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out Wild_maf05_miss90_hwe")
-#filter biallelic
-system("plink --bfile Wild_maf05_miss90 --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Wild_refiltered")
-###fixing chromosome names -- wild
-#read in bim file
-w_bim <- read.table("Wild_refiltered.bim", stringsAsFactors = FALSE)
-colnames(w_bim) <- c("chr", "snp", "cm", "pos", "a1", "a2")
-#apply that to the bim file directly - using chr map made earlier
-for (i in 1:nrow(chr_map)) {
-  w_bim$chr[w_bim$chr == chr_map$old_chr[i]] <- chr_map$new_chr[i]
-}
-#write updated bim file
-write.table(w_bim, "Wild_rf_standard.bim", quote = FALSE, sep = "\t", 
-            row.names = FALSE, col.names = FALSE)
-#have plink write new bim bam bed files with the new bim file we created
-system("plink --bed Wild_refiltered.bed --bim Wild_rf_standard.bim --fam Wild_refiltered.fam --make-bed --out Wild_rf_standard")
-
+##LEPA
+system("plink --bfile LEPA_standard_final --chr-set 18 --keep-allele-order --indep 50 5 2 --out LEPA_LDpruned_0.5_out") #makes an out and in files of SNps to keep and SNPs to remove
+system("plink --bfile LEPA_standard_final --extract LEPA_LDpruned_0.5_out.prune.in --chr-set 18 --make-bed --out LEPA_LDpruned_05") #extract SNPs and create new files
+#write vcf
+system("plink2 --bfile LEPA_LDpruned_05 --chr-set 18 --export vcf-4.2 bgz --out LEPA_LDpruned_05")
 
 ####Filtering -- ROH filters no MAF, miss 90, biallelic####
 #filter MAF and missingness and hwe
@@ -120,58 +134,6 @@ system("plink --bfile Wild_BaseFilter_AllChrom --chr-set 18 --allow-extra-chr --
 system("plink --bfile Wild_miss90_hwe --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Wild_roh_filter")
 
 
-####Subsetting filtered data by population####
-#create ranch file with dispersers included
-system("plink --bfile Wild_refiltered --keep pop_subset_wild_ranch_wdispers.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Ranch_Refiltered")
-#create refuge file with dispersers included
-system("plink --bfile Wild_refiltered --keep pop_subset_wild_refuge_wdispers.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Refuge_Refiltered")
-#create a brazilian file
-system("plink --bfile Zoo_refiltered --keep pop_subset_brazilian.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Brazilain_refiltered")
-#create a generic file
-system("plink --bfile Zoo_refiltered --keep pop_subset_generic.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Generic_refiltered")
-
-####Linkage Disequilibrium####
-##Zoo LD Pruning
-  #LD pruning spits out an error about duplicate ID names, in order for LD pruning to run smoothly the next line of code tells plink
-  #to name variants under that specific naming scheme -- this doesn't affect nearly any other analysis, except for LD pruning
-  #how the naming works is beyond me, but it sets the naming scheme so that all variants have a unique name which allows the 
-  #pruning code to make it's comparisons in the second line and remove the proper variants in the last line
-system("plink2 --bfile Zoo_refiltered --chr-set 18 --keep-allele-order --allow-extra-chr --set-all-var-ids @:#$r,$a --new-id-max-allele-len 323 --make-bed --out Zoo_refiltered_uniqueID") #set variant ID
-system("plink --bfile Zoo_refiltered_uniqueID --chr-set 18 --keep-allele-order --allow-extra-chr --memory 24000 --indep 50 5 2 --out Zoo_RF_LDpruned_0.5") #makes an out and in files of SNps to keep and SNPs to remove
-system("plink --bfile Zoo_refiltered_uniqueID --extract Zoo_RF_LDpruned_0.5.prune.in --chr-set 18 --allow-extra-chr --memory 24000 --make-bed --out Zoo_LDpruned_0.5_RF") #extract SNPs and create new files
-      #reduces SNPS from 27003602 to 4,475,851
-#write vcf
-system("plink2 --bfile Zoo_LDpruned_0.5_RF --chr-set 18 --allow-extra-chr --export vcf bgz --out Zoo_LDpruned_0.5_RF")
-
-##Wild LD Pruning
-system("plink2 --bfile Wild_refiltered --chr-set 18 --keep-allele-order --allow-extra-chr --set-all-var-ids @:#$r,$a --new-id-max-allele-len 323 --make-bed --out Wild_refiltered_uniqueID") #set variant ID
-system("plink --bfile Wild_refiltered_uniqueID --chr-set 18 --keep-allele-order --allow-extra-chr --memory 24000 --indep 50 5 2 --out Wild_RF_LDpruned_0.5") #makes an out and in files of SNps to keep and SNPs to remove
-system("plink --bfile Wild_refiltered_uniqueID --extract Wild_RF_LDpruned_0.5.prune.in --chr-set 18 --allow-extra-chr --memory 24000 --make-bed --out Wild_LDpruned_0.5_RF") #extract SNPs and create new files
-    #reduces SNPS from 12146279 to 1422635
-#write vcf
-system("plink2 --bfile Wild_LDpruned_0.5_RF --chr-set 18 --allow-extra-chr --export vcf bgz --out Wild_LDpruned_0.5_RF")
-
-####subset data after pruning into populations and origins
-#create ranch file with dispersers included
-system("plink --bfile Wild_LDpruned_0.5_RF --keep pop_subset_wild_ranch_wdispers.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Ranch_LDpruned_0.5_RF")
-#create refuge file with dispersers included
-system("plink --bfile Wild_LDpruned_0.5_RF --keep pop_subset_wild_refuge_wdispers.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Refuge_LDpruned_0.5_RF")
-#create a brazilian file
-system("plink --bfile Zoo_LDpruned_0.5_RF --keep pop_subset_brazilian.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Brazilian_LDpruned_0.5_RF")
-#create a generic file
-system("plink --bfile Zoo_LDpruned_0.5_RF --keep pop_subset_generic.txt --chr-set 18 --keep-allele-order --allow-extra-chr --make-bed --out Generic_LDpruned_0.5_RF")
-
-##test -- pruning populations separate from each other, then running inbreeding
-#ranch
-system("plink2 --bfile Ranch_Refiltered --chr-set 18 --keep-allele-order --allow-extra-chr --set-all-var-ids @:#$r,$a --new-id-max-allele-len 323 --make-bed --out Ranch_refiltered_uniqueID") #set variant ID
-system("plink --bfile Ranch_refiltered_uniqueID --chr-set 18 --keep-allele-order --allow-extra-chr --memory 24000 --indep 50 5 2 --out Ranch_isolatetest_LDpruned_0.5") #makes an out and in files of SNps to keep and SNPs to remove
-system("plink --bfile Ranch_refiltered_uniqueID --extract Ranch_isolatetest_LDpruned_0.5.prune.in --chr-set 18 --allow-extra-chr --memory 24000 --make-bed --out Ranch_isolatetest_LDpruned_0.5") #extract SNPs and create new files
-#reduces SNPS from 12146279 to 1255109
-#refuge
-system("plink2 --bfile Refuge_Refiltered --chr-set 18 --keep-allele-order --allow-extra-chr --set-all-var-ids @:#$r,$a --new-id-max-allele-len 323 --make-bed --out Refuge_refiltered_uniqueID") #set variant ID
-system("plink --bfile Refuge_refiltered_uniqueID --chr-set 18 --keep-allele-order --allow-extra-chr --memory 24000 --indep 50 5 2 --out Refuge_isolatetest_LDpruned_0.5") #makes an out and in files of SNps to keep and SNPs to remove
-system("plink --bfile Refuge_refiltered_uniqueID --extract Refuge_isolatetest_LDpruned_0.5.prune.in --chr-set 18 --allow-extra-chr --memory 24000 --make-bed --out Refuge_isolatetest_LDpruned_0.5") #extract SNPs and create new files
-#reduces SNPS from 12146279 to 1135734
 ####thinning####
 #--bp-space thins data by spacing out snps by 1000bps apart
 system("plink --bfile Wild_roh_filter --chr-set 18 --allow-extra-chr --bp-space 1000 --make-bed --out wild_roh_thin")
@@ -1148,9 +1110,9 @@ system("plink --bfile Brazilian_base_Fst --chr-set 18 --allow-extra-chr --keep-a
 system("plink --bfile Brazilian_geno1_hwe_Fst --chr-set 18 --allow-extra-chr --keep-allele-order --biallelic-only --make-bed --out Brazilian_fst_filter")
 #zoo splitting and filtering
 #exporting as vcf's
-system("plink2 --bfile Ranch_fst_filter --chr-set 18 --allow-extra-chr --export vcf bgz --out ranch_fst_in")
-system("plink2 --bfile Refuge_fst_filter --chr-set 18 --allow-extra-chr --export vcf bgz --out refuge_fst_in")
-system("plink2 --bfile Generic_fst_filter --chr-set 18 --allow-extra-chr --export vcf bgz --out generic_fst_in")
-system("plink2 --bfile Brazilian_fst_filter --chr-set 18 --allow-extra-chr --export vcf bgz --out brazilian_fst_in")
-system("plink2 --bfile Zoo_refiltered --chr-set 18 --allow-extra-chr --export vcf bgz --out zoo_refiltered")
-system("plink2 --bfile Wild_refiltered --chr-set 18 --allow-extra-chr --export vcf bgz --out wild_refiltered")
+system("plink2 --bfile Ranch_fst_filter --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out ranch_fst_in42")
+system("plink2 --bfile Refuge_fst_filter --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out refuge_fst_in42")
+system("plink2 --bfile Generic_fst_filter --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out generic_fst_in42")
+system("plink2 --bfile Brazilian_fst_filter --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out brazilian_fst_in42")
+system("plink2 --bfile Zoo_refiltered --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out zoo_refiltered_42")
+system("plink2 --bfile Wild_refiltered --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out wild_refiltered_42")

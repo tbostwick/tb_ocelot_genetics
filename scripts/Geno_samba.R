@@ -502,18 +502,20 @@ neut_nj_tree$tip.label <- pop_data_clean$sample
 
 #create tree
 adap_base <- ggtree(adaptive_nj_tree, layout = "unrooted") %<+% pop_data_clean
+l_pop_colors <- c("Brazilian" = "#3B967f", "Generic" = "#D66857", 
+                  "Refuge" = "#01004c", "Ranch" = "orchid")
 adap_base +
-  geom_tippoint(aes(color = population), size = 3) +
-  geom_tiplab(aes(label = label), size = 3, hjust = -0.2) +
+  geom_tippoint(aes(color = population), size = 2) +
   theme_tree2() +
-  theme(legend.position = "right")
+  theme(legend.position = "right") +
+  scale_color_manual(values = l_pop_colors, name = "Population")
 
 neut_base <- ggtree(neut_nj_tree, layout = "unrooted") %<+% pop_data_clean
 neut_base +
   geom_tippoint(aes(color = population), size = 3) +
-  geom_tiplab(aes(label = label), size = 3, hjust = -0.2) +
   theme_tree2() +
-  theme(legend.position = "right")
+  theme(legend.position = "right") +
+  scale_color_manual(values = l_pop_colors, name = "Population")
 ###############################################################################################
 #zoo adaptive
 z.pca.input <- read.pcadapt("zoo_thinned_ids.vcf.gz", type = "vcf") #making the vcf readable by pcaadapt
@@ -754,17 +756,18 @@ adaptive_nj_tree$tip.label <- pop_data_clean$sample
 neut_nj_tree$tip.label <- pop_data_clean$sample
 
 #create tree
+z_pop_colors <- c("Brazilian" = "#3B967f", "Generic" = "#D66857")
 adap_base <- ggtree(adaptive_nj_tree, layout = "unrooted") %<+% pop_data_clean
 adap_base +
-  geom_tippoint(aes(color = population), size = 3) +
-  geom_tiplab(aes(label = label), size = 3, hjust = -0.2) +
+  geom_tippoint(aes(color = population), size = 2) +
   theme_tree2() +
-  theme(legend.position = "right")
+  theme(legend.position = "right") +
+  scale_color_manual(values = z_pop_colors, name = "Population")
 
 neut_base <- ggtree(neut_nj_tree, layout = "unrooted") %<+% pop_data_clean
 neut_base +
-  geom_tippoint(aes(color = population), size = 3) +
-  geom_tiplab(aes(label = label), size = 3, hjust = -0.2) +
+  geom_tippoint(aes(color = population), size = 2) +
   theme_tree2() +
-  theme(legend.position = "right")
+  theme(legend.position = "right") +
+  scale_color_manual(values = z_pop_colors, name = "Population")
 
