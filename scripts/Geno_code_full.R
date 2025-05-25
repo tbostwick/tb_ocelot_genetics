@@ -207,11 +207,13 @@ pca.data.wild.origins <- pca.data.wild.origins %>%
 
 ggplot(pca.data.wild.origins, aes(x=V3,y=V4)) +  #plot with individual ID's and by origin
   geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 2) +
-  geom_text(aes(label=V2), vjust=1, hjust=1, size=2, color = "black") + #V2 is ID
+  geom_text(data = subset(pca.data.wild.origins, V2 %in% c("E35M", "LO01F")),
+            aes(label=V2), vjust=1, hjust=1, size=3, color = "black") + #V2 is ID
   scale_color_manual(name = "Origin", values = c("Refuge" = "#01004c", "Ranch" = "orchid")) +
   scale_shape_manual(name = "Origin", values = c("Refuge" = 19, "Ranch" = 17)) +
-  labs(x = "PC1", y = "PC2", title = "Wild PCA by Individual") +
+  labs(x = "PC1", y = "PC2") +
   theme_minimal()
+
 
 #PCA on all ocelots
 system("plink --bfile LEPA_refiltered --pca --chr-set 18 --allow-extra-chr --out pca_LP") #run the pca code, specified the number of chromosomes
@@ -229,6 +231,8 @@ ggplot(pca.data.ocelot.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with
                                                  "Brazilian" = 15, "Generic" = 8)) +
   labs(x = "PC1", y = "PC2", title = "Ocelot PCA by Individual") +
   theme_minimal()
+
+
 
 ####KING Values####
 #king-robust kingship estimator for zoo individuals
@@ -610,7 +614,7 @@ roh.df$Composite_thin <- ((wild_roh_comp_results$KB*1000)/2425730029)*100
 roh.df$Composite_thin2 <- ((wild_roh_comp2_results$KB*1000)/2425730029)*100
 ##writing as csv
 write.csv(roh.df, "wild_roh_percentgenome.csv")
-
+roh.df <- read.csv("wild_roh_percentgenome.csv", header = TRUE)
 #average % genome in roh by population
 population_mean_roh <- roh.df %>%
   group_by(pop_id) %>%
@@ -618,7 +622,7 @@ population_mean_roh <- roh.df %>%
             Count = n(),
             StdDev = sd(Thin_test2, na.rm = TRUE),
             StdError = (sd(Thin_test2, na.rm = TRUE)/sqrt(n())))
-#plot
+#plot1
 ggplot() +
   geom_boxplot(data = roh.df,
                aes(x = pop_id, y = Thin_test2),
@@ -635,6 +639,29 @@ ggplot() +
   theme_minimal() +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"),
         axis.title = element_text(face = "bold"))
+
+#plot 2
+ggplot() +
+  # Box plots from individual data
+  geom_boxplot(data = roh.df, aes(x = pop_id, y = Thin_test2), 
+               alpha = 0.7, outlier.shape = 16) +
+  # Add individual points
+  geom_jitter(data = roh.df, aes(x = pop_id, y = Thin_test2), 
+              width = 0.2, alpha = 0.5, size = 1.5) +
+  # Add population means with error bars
+  geom_point(data = population_mean_roh, aes(x = pop_id, y = Average), 
+             color = "red", size = 4, shape = 18) +
+  geom_errorbar(data = population_mean_roh, 
+                aes(x = pop_id, y = Average, 
+                    ymin = Average - StdError, ymax = Average + StdError),
+                color = "red", width = 0.2, size = 1) +
+  # Labels and theme
+  labs(x = "Population", y = expression(F[ROH])) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, hjust = 0.5))
 
 #zoo -- populate dataframe with ID's and percent genome for each parameter test
 roh.df.z <- zoo_saremi_results$IID #populate ID's
@@ -716,23 +743,23 @@ w_individual_category_summary <- w_roh_t2 %>%
   )
 #summary by population 
 population_category_counts <- w_roh_t2 %>%
-  group_by(pop, Category)  %>%
+  group_by(pop_id, Category)  %>%
   summarise(Count = n(), Total_Length_MB = sum(Length_MB), .groups = "drop")
 #proportion by population
 population_category_proportions <- population_category_counts %>%
-  group_by(pop) %>%
+  group_by(pop_id) %>%
   mutate(Proportion_Count = Count/sum(Count),
          Proportion_Length = Total_Length_MB/sum(Total_Length_MB))
 
 #normalizing data for direct comparison
 individuals_per_pop <- data.frame(
-  pop = c("Ranch", "Refuge"),
+  pop_id = c("Ranch", "Refuge"),
   n_individuals = c(26, 18)
 )
 
 normalized_roh <- population_category_counts %>%
-  left_join(individuals_per_pop, by = "pop") %>%
-  group_by(pop) %>%
+  left_join(individuals_per_pop, by = "pop_id") %>%
+  group_by(pop_id) %>%
   mutate(
     # Within-population proportions
     Proportion_Count = Count / sum(Count),
@@ -743,6 +770,9 @@ normalized_roh <- population_category_counts %>%
     Avg_ROH_Length_MB_Per_Individual = Total_Length_MB / n_individuals
   ) %>%
   ungroup()
+write.csv(normalized_roh, "pop_normalized_roh.csv")
+write.csv(population_mean_roh, "pop_mean_froh.csv")
+write.csv(w_total_summary, "roh_summary.csv")
 ####Visualizing ROH --karyotype plot -- wild####
 #install packages
 if (!requireNamespace("BiocManager", quietly = TRUE))
@@ -1084,6 +1114,39 @@ w_k2plot <-
   scale_fill_manual(values = c("V1" = "#01004c", "V2" = "#ffb2b0")) +
   guides(fill = "none")
 w_k2plot
+ggsave("wild_k2_admixture_altcol.png", w_k2plot, width = 15, height = 8, bg = "white")
+
+####ranch only####
+r_k2_table <- read.table("Ranch_standard_final.2.q")
+r_ids <- read.table("ranch_subset.txt")
+r_ids = subset(r_ids, select = -c(V1))
+r_ids = rename(r_ids, sample_id = V2, pop_id = V3)
+r_k2 <- cbind(r_ids, r_k2_table)
+r_k2_long <- pivot_longer(
+  r_k2, cols = c(V1, V2),
+  names_to = "ancestry",
+  values_to = "proportion"
+) #pivots the table to the proportions are able to be plotted as stacked bars\
+r_k2_long$pop_id <- str_to_upper(r_k2_long$pop_id)
+#plot code
+ranch_k2plot <-
+  ggplot(r_k2_long, aes(x = factor(sample_id), y = proportion, fill = ancestry)) +
+  geom_col(color = "gray", linewidth = 0.1) +
+  facet_grid(~fct_inorder(pop_id), switch = "both", scales = "free", space = "free") +
+  theme_minimal() +
+  labs(x = "Individuals", title = "K=2", y = "Ancestry") +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(panel.spacing.x = unit(0.1, "lines"),
+        axis.title.x = element_blank(),
+        panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 0, vjust = 0.5, size = 8),
+        strip.text.x = element_text(face = "bold", size = 12),
+        strip.placement = "outside"
+  ) +
+  scale_fill_manual(values = c("V1" = "#3D1308", "V2" = "#ffb2b0")) +
+  guides(fill = "none")
+ranch_k2plot
 ggsave("wild_k2_admixture_altcol.png", w_k2plot, width = 15, height = 8, bg = "white")
 
 ################################################################################
