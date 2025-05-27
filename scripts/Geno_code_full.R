@@ -642,12 +642,12 @@ ggplot() +
 
 #plot 2
 ggplot() +
-  # Box plots from individual data
-  geom_boxplot(data = roh.df, aes(x = pop_id, y = Thin_test2), 
-               alpha = 0.7, outlier.shape = 16) +
+  # violin plot
+  geom_violin(data = roh.df, aes(x = pop_id, y = Thin_test2, fill = pop_id), 
+               alpha = 0.7) +
   # Add individual points
   geom_jitter(data = roh.df, aes(x = pop_id, y = Thin_test2), 
-              width = 0.2, alpha = 0.5, size = 1.5) +
+              width = 0.1, alpha = 0.4, size = 1) +
   # Add population means with error bars
   geom_point(data = population_mean_roh, aes(x = pop_id, y = Average), 
              color = "red", size = 4, shape = 18) +
@@ -655,13 +655,15 @@ ggplot() +
                 aes(x = pop_id, y = Average, 
                     ymin = Average - StdError, ymax = Average + StdError),
                 color = "red", width = 0.2, size = 1) +
+  scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c")) +
   # Labels and theme
   labs(x = "Population", y = expression(F[ROH])) +
   theme_minimal() +
   theme(axis.text.x = element_text(size = 12),
         axis.text.y = element_text(size = 12),
         axis.title = element_text(size = 14),
-        plot.title = element_text(size = 16, hjust = 0.5))
+        plot.title = element_text(size = 16, hjust = 0.5),
+        legend.position = "none")
 
 #zoo -- populate dataframe with ID's and percent genome for each parameter test
 roh.df.z <- zoo_saremi_results$IID #populate ID's
@@ -799,7 +801,7 @@ library(GenomicAlignments)
 w_hom <- read.table("wild_thin_composite2.hom", header = TRUE)
 #make data frame for plotting
 w_roh_plot <- data.frame(
-  chr = paste0("chr", w_hom$CHR),  # Add 'chr' prefix if needed
+  chr = paste0(w_hom$CHR),  # Add 'chr' prefix if needed
   start = w_hom$POS1,
   end = w_hom$POS2,
   kb = w_hom$KB,           # ROH length in KB
@@ -810,24 +812,27 @@ w_pop_id <- read.csv("wild_origins_2.csv") #adding population information
 w_pop_id_df <-as.data.frame(w_pop_id)
 w_roh_pop <- merge(w_roh_plot, w_pop_id_df, by = "sample_id", all = TRUE) #merging the population information with the data frame
 #fixing chrome naming
-w_roh_plot[w_roh_plot == "chrNC_058368.1"] <- "chr1"
-w_roh_plot[w_roh_plot == "chrNC_058369.1"] <- "chr2"
-w_roh_plot[w_roh_plot == "chrNC_058370.1"] <- "chr3"
-w_roh_plot[w_roh_plot == "chrNC_058371.1"] <- "chr4"
-w_roh_plot[w_roh_plot == "chrNC_058372.1"] <- "chr5"
-w_roh_plot[w_roh_plot == "chrNC_058373.1"] <- "chr6"
-w_roh_plot[w_roh_plot == "chrNC_058374.1"] <- "chr7"
-w_roh_plot[w_roh_plot == "chrNC_058375.1"] <- "chr8"
-w_roh_plot[w_roh_plot == "chrNC_058376.1"] <- "chr9"
-w_roh_plot[w_roh_plot == "chrNC_058377.1"] <- "chr10"
-w_roh_plot[w_roh_plot == "chrNC_058378.1"] <- "chr11"
-w_roh_plot[w_roh_plot == "chrNC_058379.1"] <- "chr12"
-w_roh_plot[w_roh_plot == "chrNC_058380.1"] <- "chr13"
-w_roh_plot[w_roh_plot == "chrNC_058381.1"] <- "chr14"
-w_roh_plot[w_roh_plot == "chrNC_058382.1"] <- "chr15"
-w_roh_plot[w_roh_plot == "chrNC_058383.1"] <- "chr16"
-w_roh_plot[w_roh_plot == "chrNC_058384.1"] <- "chr17"
-w_roh_plot[w_roh_plot == "chrNC_058385.1"] <- "chr18"
+chr_map <- c(
+  "NC_058368.1" = "chr1",
+  "NC_058369.1" = "chr2",
+  "NC_058370.1" = "chr3",
+  "NC_058371.1" = "chr4",
+  "NC_058372.1" = "chr5",
+  "NC_058373.1" = "chr6",
+  "NC_058374.1" = "chr7",
+  "NC_058375.1" = "chr8",
+  "NC_058376.1" = "chr9",
+  "NC_058377.1" = "chr10",
+  "NC_058378.1" = "chr11",
+  "NC_058379.1" = "chr12",
+  "NC_058380.1" = "chr13",
+  "NC_058381.1" = "chr14",
+  "NC_058382.1" = "chr15",
+  "NC_058383.1" = "chr16",
+  "NC_058384.1" = "chr17",
+  "NC_058385.1" = "chr18"
+)
+w_roh_plot$chr <- chr_map[w_roh_plot$chr]
 #create custom feline genotype for karyoploteR, make a custom plot type for the 18 chr
 feline_chr_sizes <- data.frame(
   chr = c(paste0("chr", 1:18)), 
@@ -901,6 +906,33 @@ if (!is.null(output_file)) {
 # Return the filtered data
 return(individual_roh)
 }
+####manuscript plots -- for three individuals -- not working
+manu_roh_plot <- function(sample_a, sample_b, sample_c, output_file = NULL) {
+  sample_ids <- c(sample_a, sample_b, sample_c) #create vector of ids
+  if (!is.null(output_file)) {
+    png(output_file, width = 1500, height = 700, res = 300)
+  }
+  par(mfrow = c(1,3), mar = c(4, 3, 3, 1))
+  for (i in 1:3) {
+    current_sample <- sample_ids [i]
+    individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id == current_sample]
+    w_kp <- plotKaryotype(genome = ocel_genome,
+                          plot.type = 1,
+                          chromosomes = "all",
+                          main = paste("ROH for", current_sample))
+    kpPlotRegions(w_kp, data = individual_roh, col = "#FF000080", border = "#FF0000")
+  }
+  par(mfrow = c(1,1))
+  if (!is.null(output_file)) {
+    dev.off()
+  }
+}
+manu_roh_plot("LAO06M-2A", "LO01F-1", "LO03M-1", "manu_roh_plot.png")
+
+
+
+
+
 
 ####function for plotting -- population wide
 plot_population_roh_smoothed <- function(population_id, output_file = NULL, window_size = 1e5, smooth = TRUE) {
