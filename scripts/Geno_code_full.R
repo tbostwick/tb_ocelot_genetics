@@ -906,33 +906,6 @@ if (!is.null(output_file)) {
 # Return the filtered data
 return(individual_roh)
 }
-####manuscript plots -- for three individuals -- not working
-manu_roh_plot <- function(sample_a, sample_b, sample_c, output_file = NULL) {
-  sample_ids <- c(sample_a, sample_b, sample_c) #create vector of ids
-  if (!is.null(output_file)) {
-    png(output_file, width = 1500, height = 700, res = 300)
-  }
-  par(mfrow = c(1,3), mar = c(4, 3, 3, 1))
-  for (i in 1:3) {
-    current_sample <- sample_ids [i]
-    individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id == current_sample]
-    w_kp <- plotKaryotype(genome = ocel_genome,
-                          plot.type = 1,
-                          chromosomes = "all",
-                          main = paste("ROH for", current_sample))
-    kpPlotRegions(w_kp, data = individual_roh, col = "#FF000080", border = "#FF0000")
-  }
-  par(mfrow = c(1,1))
-  if (!is.null(output_file)) {
-    dev.off()
-  }
-}
-manu_roh_plot("LAO06M-2A", "LO01F-1", "LO03M-1", "manu_roh_plot.png")
-
-
-
-
-
 
 ####function for plotting -- population wide
 plot_population_roh_smoothed <- function(population_id, output_file = NULL, window_size = 1e5, smooth = TRUE) {
