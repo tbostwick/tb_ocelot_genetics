@@ -154,6 +154,11 @@ system("plink --bfile LEPA_BaseFilter_Allchrom --chr-set 18 --allow-extra-chr --
 #export as vcf
 system("plink2 --bfile lepa_base_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_samba_nofilt_thin")
 
+#thinning final vcfs
+system("plink --vcf Ranch_standard_final.vcf.gz --chr-set 18 --bp-space 1000 --export vcf bgz --out ranch_final_thin")
+system("plink --vcf Refuge_standard_final.vcf.gz --chr-set 18 --bp-space 1000 --export vcf bgz --out refuge_final_thin")
+system("plink --vcf Generic_standard_final.vcf.gz --chr-set 18 --bp-space 1000 --export vcf bgz --out generic_final_thin")
+system("plink --vcf Brazilian_standard_final.vcf.gz --chr-set 18 --bp-space 1000 --export vcf bgz --out brazilian_final_thin")
 #########################################################
 #Data Analysis
 ####Data exploration and quality checks####
@@ -666,11 +671,60 @@ ggplot() +
         legend.position = "none")
 
 #zoo -- populate dataframe with ID's and percent genome for each parameter test
-roh.df.z <- zoo_saremi_results$IID #populate ID's
+roh.df.z <-zoo_roh_thin_test2_results$IID #populate ID's
 roh.df.z <- as.data.frame(roh.df.z) #create the data frame
-roh.df.z$Saremi_full <- ((zoo_saremi_results$KB*1000)/2425730029)*100 #unthinned saremi param
 roh.df.z$Thin_test2 <- ((zoo_roh_thin_test2_results$KB*1000)/2425730029)*100
 write.csv(roh.df.z, "zoo_roh_percentgenome.csv")
+z_pop_id <-read.csv("zoo_origins.csv")
+colnames(z_pop_id)[1] <- "IID"
+colnames(roh.df.z)[1] <- "IID"
+roh_zoo <- merge(roh.df.z, z_pop_id, by = "IID", all = TRUE)
+
+origin_mean_roh <- roh_zoo %>%
+  group_by(Cat.Group) %>%
+  summarise(Average = mean(Thin_test2, na.rm = TRUE),
+            Count = n(),
+            StdDev = sd(Thin_test2, na.rm = TRUE),
+            StdError = (sd(Thin_test2, na.rm = TRUE)/sqrt(n())))
+
+ggplot() +
+  # violin plot
+  geom_violin(data = roh_zoo, aes(x = Cat.Group, y = Thin_test2, fill = Cat.Group), 
+              alpha = 0.7) +
+  # Add individual points
+  geom_jitter(data = roh_zoo, aes(x = Cat.Group, y = Thin_test2), 
+              width = 0.1, alpha = 0.4, size = 1) +
+  # Add population means with error bars
+  geom_point(data = origin_mean_roh, aes(x = Cat.Group, y = Average), 
+             color = "red", size = 4, shape = 18) +
+  geom_errorbar(data = origin_mean_roh, 
+                aes(x = Cat.Group, y = Average, 
+                    ymin = Average - StdError, ymax = Average + StdError),
+                color = "red", width = 0.2, size = 1) +
+  scale_fill_manual(values = c("Generic" = "#D66857", "Brazilian" = "#3B967f")) +
+  # Labels and theme
+  labs(x = "Origin", y = expression(F[ROH])) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, hjust = 0.5),
+        legend.position = "none")
+
+#zoo descriptive stats
+z_roh_t2 <- read.table("zoo_roh_thin_test2.hom", header = T)
+z_roh_descript <- merge(z_roh_t2, z_pop_id, by = "IID", all = TRUE)
+z_roh_descript$Length_MB <- z_roh_descript$KB/1000
+z_roh_descript$Category <- cut(z_roh_descript$Length_MB,
+                         breaks = c(0, 1, 2, 4, 6, 8, Inf),
+                         labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", ">8Mb"),
+                         include.lowest = TRUE)
+z_population_category_counts <- z_roh_descript %>%
+  group_by(Cat.Group, Category)  %>%
+  summarise(Count = n(), Total_Length_MB = sum(Length_MB), .groups = "drop")
+write.csv(z_population_category_counts, "zoo_roh_categories.csv")
+write.csv(origin_mean_roh, "zoo_mean_roh.csv")
+summary(z_roh_descript$Length_MB)
 
 ####proportion of ROH lengths
 #read in .hom files
@@ -719,30 +773,7 @@ write.csv(w_total_summary, "overall_roh_length_proportions_t2.csv")
 write.csv(w_total_summary_ct, "overall_roh_length_proportions_ct1.csv")
 
 #summary by individual
-w_individual_summary <- w_roh_t2 %>%
-  group_by(IID) %>%
-  summarize(
-    Total_ROH_Count = n(),
-    Total_ROH_Length_MB = sum(Length_MB),
-    Mean_ROH_Length_MB = mean(Length_MB),
-    Median_ROH_Length_MB = median(Length_MB),
-    Min_ROH_Length_MB = min(Length_MB),
-    Max_ROH_Length_MB = max(Length_MB)
-  )
-#proportions by individual
-w_individual_category_summary <- w_roh_t2 %>%
-  group_by(IID, Category) %>%
-  summarize(
-    Count = n(),
-    Total_Length_MB = sum(Length_MB),
-    .groups = "drop"
-  ) %>%
-  group_by(IID) %>%
-  mutate(
-    Individual_Total_Length = sum(Total_Length_MB),
-    Proportion_Length = Total_Length_MB / Individual_Total_Length,
-    Proportion_Count = Count / sum(Count)
-  )
+
 #summary by population 
 population_category_counts <- w_roh_t2 %>%
   group_by(pop_id, Category)  %>%
@@ -992,6 +1023,204 @@ for (pop in unique_pops) {
 dev.off()
 ###ROH overlap plot
 
+
+####merged roh test -- post processing completed in command line####
+##in command line, stitched roh that were separated by 1010 bases, resulting in:
+#Original number of segments: 36348
+#Merged number of segments: 33323
+#Reduction: 3025 segments (8.32%)
+
+#read in data
+thin2_merged <- read.table("wild_thintest2_merged.hom", header = TRUE)
+ind_merged <- read.table("wild_thintest2_merged.ind", header = TRUE)
+#create data frame for analysis
+roh.df.merge <- ind_merged$IID #populate ID's
+roh.df.merge <- as.data.frame(roh.df.merge) #create the data frame
+roh.df.merge$thin2_merged <- ((ind_merged$KB*1000)/2425730029)*100
+write.csv(roh.df.merge, "merged_roh_thin2.csv")
+
+#calc bins
+thin2_merged$Length_MB <- thin2_merged$KB/1000
+thin2_merged$Category <- cut(thin2_merged$Length_MB,
+                         breaks = c(0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, Inf),
+                         labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", "8-10MB", "10-12Mb", "12-14Mb", 
+                                    "14-16Mb", "16-18Mb", "18-20Mb", ">20Mb"),
+                         include.lowest = TRUE)
+#save new hom file
+write.csv(thin2_merged, "wild_thintest2_merged_categories_hom.csv")
+#summaries by individual
+merged_ind_summary <- thin2_merged %>%
+  group_by(IID) %>%
+  summarize(
+    Total_ROH_Count = n(),
+    Total_ROH_Length_MB = sum(Length_MB),
+    Mean_ROH_Length_MB = mean(Length_MB),
+    Median_ROH_Length_MB = median(Length_MB),
+    Min_ROH_Length_MB = min(Length_MB),
+    Max_ROH_Length_MB = max(Length_MB)
+  )
+#proportions by individual
+merged_ind_cat_summary <- thin2_merged %>%
+  group_by(IID, Category) %>%
+  summarize(
+    Count = n(),
+    Total_Length_MB = sum(Length_MB),
+    .groups = "drop"
+  ) %>%
+  group_by(IID) %>%
+  mutate(
+    Individual_Total_Length = sum(Total_Length_MB),
+    Proportion_Length = Total_Length_MB / Individual_Total_Length,
+    Proportion_Count = Count / sum(Count)
+  )
+write.csv(merged_ind_cat_summary, "merged_individual_categories_roh.csv")
+##proportions by populations
+w_pop_id <- read.csv("wild_origins_2.csv") #adding population information
+w_pop_id_df <-as.data.frame(w_pop_id) #making df
+colnames(w_pop_id_df)[1] <- "IID"
+thin2_merged <- merge(thin2_merged, w_pop_id_df, by = "IID", all = TRUE)
+
+#pure counts, non normalized
+population_category_counts <- thin2_merged %>%
+  group_by(pop_id, Category)  %>%
+  summarise(Count = n(), Total_Length_MB = sum(Length_MB), .groups = "drop")
+#normalized for sample size differences
+individuals_per_pop <- data.frame(
+  pop_id = c("Ranch", "Refuge"),
+  n_individuals = c(26, 18)
+)
+
+normalized_roh_merged <- population_category_counts %>%
+  left_join(individuals_per_pop, by = "pop_id") %>%
+  group_by(pop_id) %>%
+  mutate(
+    # Within-population proportions
+    Proportion_Count = Count / sum(Count),
+    Proportion_Length = Total_Length_MB / sum(Total_Length_MB),
+    
+    # Per-individual normalized metrics
+    Avg_ROH_Count_Per_Individual = Count / n_individuals,
+    Avg_ROH_Length_MB_Per_Individual = Total_Length_MB / n_individuals
+  ) %>%
+  ungroup()
+write.csv(normalized_roh_merged, "roh_population_categories_merged.csv")
+
+##plotting new merged roh bins
+#read in hom file
+merg_roh <- read.table("wild_thintest2_merged.hom", header = TRUE)
+#make data frame for plotting
+merged_plot <- data.frame(
+  chr = paste0(merg_roh$CHR),  # Add 'chr' prefix if needed
+  start = merg_roh$BP1,
+  end = merg_roh$BP2,
+  kb = merg_roh$KB,           # ROH length in KB
+  nsnp = merg_roh$NSNP,       # Number of SNPs in ROH
+  sample_id = merg_roh$IID    # Individual ID
+)
+
+#fixing chrome naming
+chr_map <- c(
+  "NC_058368.1" = "chr1",
+  "NC_058369.1" = "chr2",
+  "NC_058370.1" = "chr3",
+  "NC_058371.1" = "chr4",
+  "NC_058372.1" = "chr5",
+  "NC_058373.1" = "chr6",
+  "NC_058374.1" = "chr7",
+  "NC_058375.1" = "chr8",
+  "NC_058376.1" = "chr9",
+  "NC_058377.1" = "chr10",
+  "NC_058378.1" = "chr11",
+  "NC_058379.1" = "chr12",
+  "NC_058380.1" = "chr13",
+  "NC_058381.1" = "chr14",
+  "NC_058382.1" = "chr15",
+  "NC_058383.1" = "chr16",
+  "NC_058384.1" = "chr17",
+  "NC_058385.1" = "chr18"
+)
+merged_plot$chr <- chr_map[merged_plot$chr]
+#create custom feline genotype for karyoploteR, make a custom plot type for the 18 chr
+feline_chr_sizes <- data.frame(
+  chr = c(paste0("chr", 1:18)), 
+  start = rep(1, 18),
+  end = c(239367248,  # chr1
+          169388855,  # chr2
+          140443288,  # chr3
+          205367284,  # chr4
+          151959158,  # chr5
+          148491486,  # chr6
+          142168536,  # chr7
+          221611373,  # chr8
+          158578461,  # chr9
+          115366950,  # chr10
+          88083857,   # chr11
+          94435393,   # chr12
+          95154158,   # chr13
+          61876196,   # chr14
+          61988844,   # chr15
+          41437797,   # chr16
+          69239673,   # chr17
+          83466477   # chr18
+  )
+)  
+feline_genome_gr <- GRanges(seqnames = feline_chr_sizes$chr, ranges = IRanges(start = feline_chr_sizes$start, end = feline_chr_sizes$end)) #make into grange object
+ocel_genome <- feline_genome_gr #making the custom plot type
+seqlevels(ocel_genome) <- feline_chr_sizes$chr
+seqlengths(ocel_genome) <- feline_chr_sizes$end
+
+# roh convert to GRanges object
+merg_gr <- GRanges(
+  seqnames = merged_plot$chr,
+  ranges = IRanges(start = merged_plot$start, end = merged_plot$end),
+  kb = merged_plot$kb,
+  nsnp = merged_plot$nsnp,
+  sample_id = merged_plot$sample_id) #making hom file into grange
+
+
+#####creating function for plotting -- individual
+plot_individual_roh <- function(sample_id, output_file = NULL) {
+  # Filter ROH data for specific individual
+  individual_roh <- merg_gr[mcols(merg_gr)$sample_id %in% sample_id]
+  # Determine if output should go to a file
+  if (!is.null(output_file)) {
+    pdf(output_file, width = 10, height = 7)
+  }
+  #create the plot using the custom genome
+  w_kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH for", sample_id))
+  #kpAddChromosomeNames(w_kp, srt = 45, cex = 0.8) #not using this line for now
+  #plot individuals
+  kpRect(w_kp, 
+         chr = as.character(seqnames(individual_roh)), 
+         x0 = start(individual_roh), 
+         x1 = end(individual_roh),
+         y0 = 0, 
+         y1 = 1, 
+         col = "#FF000080",  # Semi-transparent red
+         border = "#FF0000",
+         r0 = 0.5, r1 = 0.8)
+  # Close file if opened
+  if (!is.null(output_file)) {
+    dev.off()
+  }
+  # Return the filtered data
+  return(individual_roh)
+}
+
+#using the function
+unique_samples <- unique(merged_plot$sample_id)
+sanitize_filename <- function(name) {
+  gsub("[^A-Za-z0-9_]", "_", name)  # Replace anything that's not a letter, number, or underscore
+}
+dir.create("merg_roh_plot", showWarnings = FALSE)
+for (sample_id in unique_samples) {
+  safe_id <- sanitize_filename(sample_id)
+  output_file <- paste0("merg_roh_plot/", safe_id, "_roh_plot.pdf")
+  plot_individual_roh(sample_id, output_file)
+}
+
+
+
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
 install.packages("adegenet")
@@ -1098,7 +1327,7 @@ w_k2_long <- pivot_longer(
   w_k2, cols = c(V1, V2),
   names_to = "ancestry",
   values_to = "proportion"
-) #pivots the table to the proportions are able to be plotted as stacked bars\
+) #pivots the table to the proportions are able to be plotted as stacked bars
 w_k2_long$pop_id <- str_to_upper(w_k2_long$pop_id)
 #plot code
 w_k2plot <-
@@ -1184,3 +1413,116 @@ system("plink2 --bfile Generic_fst_filter --chr-set 18 --allow-extra-chr --expor
 system("plink2 --bfile Brazilian_fst_filter --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out brazilian_fst_in42")
 system("plink2 --bfile Zoo_refiltered --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out zoo_refiltered_42")
 system("plink2 --bfile Wild_refiltered --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out wild_refiltered_42")
+
+####Fst and nucleotide diversity####
+
+#nucleotide diversitt summary -- reading in data
+nucleotide_data_clean <- summary_pi %>%
+  mutate(individual = gsub("-.*", "", individual),
+         individual = gsub("standard_final_24040DeY_", "", individual))
+origins <- as.data.frame(read.csv("lepa_origins.csv"))
+as.data.frame(nucleotide_data_clean)
+origins_clean <- origins %>%
+  mutate(individual = gsub("-.*", "", individual))
+
+nucleo_by_pop <- nucleotide_data_clean %>%
+  left_join(origins_clean, by = "individual")
+
+#making summary stats
+n_stats <- nucleo_by_pop %>%
+  group_by(Pop) %>%
+  summarise(
+    mean_pi_avg = mean(mean_pi, na.rm = TRUE),
+    sd_pi_avg = sd(mean_pi, na.rm = TRUE),
+    n_individuals = n(),
+    .groups = 'drop'
+  )
+#plotting nucleotide diversity
+ggplot() +
+  # violin plot
+  geom_violin(data = nucleo_by_pop, aes(x = Pop, y = mean_pi, fill = Pop), 
+              alpha = 0.7) +
+  # Add individual points
+  geom_jitter(data = nucleo_by_pop, aes(x = Pop, y = mean_pi), 
+              width = 0.1, alpha = 0.4, size = 1) +
+  # Add population means with error bars
+  geom_point(data = n_stats, aes(x = Pop, y = mean_pi_avg), 
+             color = "red", size = 4, shape = 18) +
+  geom_errorbar(data = n_stats, 
+                aes(x = Pop, y = mean_pi_avg, 
+                    ymin = mean_pi_avg - sd_pi_avg, ymax = mean_pi_avg + sd_pi_avg),
+                color = "red", width = 0.2, size = 1) +
+  scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c",
+                               "Generic" = "#D66857", "Brazilian" = "#3B967f")) +
+  # Labels and theme
+  labs(x = "Population", y = "Nucleotide Diversity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, hjust = 0.5),
+        legend.position = "none")
+
+####expected and observed Heterozygosity####
+#packages
+library(adegenet)
+library(vcfR)
+install.packages("poppr")
+library(poppr)
+install.packages("dartR")
+BiocManager::install("SNPRelate")
+library(SNPRelate)
+library(dartR)
+
+# reading in data
+Ra_vcf <- read.vcfR("ranch_final_thin.vcf.gz", verbose = TRUE)
+ranch_genlight <- vcfR2genlight(Ra_vcf)
+
+Re_vcf <- read.vcfR("refuge_final_thin.vcf.gz", verbose = TRUE)
+Refuge_genlight <- vcfR2genlight(Re_vcf)
+
+Ge_vcf <- read.vcfR("generic_final_thin.vcf.gz", verbose = TRUE)
+Gen_genlight <- vcfR2genlight(Ge_vcf)
+
+Br_vcf <- read.vcfR("brazilian_final_thin.vcf.gz", verbose = TRUE)
+braz_genlight <- vcfR2genlight(Br_vcf)
+
+##estimating values -- for loop
+#create genlight list
+gen_list <- list(
+  "Ranch" = ranch_genlight,
+  "Refuge" = Refuge_genlight,
+  "Generic" = Gen_genlight,
+  "Brazilian" = braz_genlight
+)
+
+#create dataframe for results
+diversity_results <- data.frame(
+  Population = character(),
+  He = numeric(),
+  Ho = numeric(),
+  Fis = numeric(),
+  stringsAsFactors = FALSE
+)
+
+#making for loop
+for(i in 1:length(gen_list)) {
+  pop_name <- names(gen_list)[i]
+  gl_obj <- gen_list[[i]]
+  #added to avoid error in the gl.report function
+  gl_obj@other$loc.metrics.flags$monomorphs <- TRUE
+  #calc heterozygosity stats
+  het_stats <- gl.report.heterozygosity(gl_obj, method = "pop")
+  #extract values
+  he <- het_stats$He
+  ho <- het_stats$Ho
+  fis <- 1 - (ho / he)
+  #add to dataframe
+  diversity_results <- rbind(diversity_results, 
+                             data.frame(Population = pop_name,
+                                        He = he,
+                                        Ho = ho,
+                                        Fis = fis))
+}
+print(diversity_results)
+write.csv(diversity_results, "diversity_statistics_by_pop.csv")
