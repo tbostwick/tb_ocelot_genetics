@@ -40,7 +40,7 @@ getpackages()
 ###############################################################################################################
 #for these steps, samba requires you to filter in samba for the file structures to be correct
 ####loading in data as genlights -- unfiltered####
-l_vcf <- read.vcfR("lepa_samba_nofilt_thin.vcf.gz", verbose = TRUE)
+l_vcf <- read.vcfR("lepa_samba_nofilt_thin_final.vcf.gz", verbose = TRUE)
 lepa_genlight <- vcfR2genlight(l_vcf)
 lepa_genlight
 ##adding population assignments
@@ -62,7 +62,7 @@ filterdata(snpmiss=0.1,min_mac=8,dohefilter=TRUE,snpdepthfilter=TRUE, min_spacin
 calckinship()
 
 #genetic diversity measurements
-calcdiversity(do_venn = FALSE) 
+div_results <- calcdiversity(do_venn = FALSE) 
 ##################################################################################################################
 #data can be pre-filtered outside of samba for the following steps
 ####loading packages and working directory####

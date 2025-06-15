@@ -150,9 +150,9 @@ system("plink2 --bfile zoo_dapc_thin --chr-set 18 --allow-extra-chr --export vcf
 system("plink2 --bfile lepa_dapc_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_dapc_thin")
 
 #thinning and writing vcf for samba -- unfiltered dataset
-system("plink --bfile LEPA_BaseFilter_Allchrom --chr-set 18 --allow-extra-chr --bp-space 1000 --make-bed --out lepa_base_thin")
+system("plink --bfile LEPA_unfilt --chr-set 18 --bp-space 1000 --make-bed --out lepa_unfilt_thin")
 #export as vcf
-system("plink2 --bfile lepa_base_thin --chr-set 18 --allow-extra-chr --export vcf bgz --out lepa_samba_nofilt_thin")
+system("plink2 --bfile lepa_unfilt_thin --chr-set 18 --export vcf bgz --out lepa_samba_nofilt_thin_final")
 
 #thinning final vcfs
 system("plink --vcf Ranch_standard_final.vcf.gz --chr-set 18 --bp-space 1000 --export vcf bgz --out ranch_final_thin")
