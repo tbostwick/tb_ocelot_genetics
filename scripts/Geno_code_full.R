@@ -211,13 +211,24 @@ pca.data.wild.origins <- pca.data.wild.origins %>%
   mutate(V2 = gsub("-.*", "", V2))
 
 ggplot(pca.data.wild.origins, aes(x=V3,y=V4)) +  #plot with individual ID's and by origin
-  geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 2) +
+  geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 3) +
+  geom_rect(data = subset(pca.data.wild.origins, V2 %in% c("E35M", "LO01F")),
+            aes(xmin = min(V3) - 0.02, xmax = max(V3) + 0.04,
+                ymin = min(V4) - 0.02, ymax = max(V4) + 0.04),
+            fill = NA, color = "black", linewidth = 1, linetype = "dashed") +
   geom_text(data = subset(pca.data.wild.origins, V2 %in% c("E35M", "LO01F")),
-            aes(label=V2), vjust=1, hjust=1, size=3, color = "black") + #V2 is ID
+            aes(label=V2), vjust=-1, hjust=-0.2, size=4, color = "black") + #V2 is ID
   scale_color_manual(name = "Origin", values = c("Refuge" = "#01004c", "Ranch" = "orchid")) +
   scale_shape_manual(name = "Origin", values = c("Refuge" = 19, "Ranch" = 17)) +
   labs(x = "PC1", y = "PC2") +
-  theme_minimal()
+  theme_minimal() +
+  theme(
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
 
 
 #PCA on all ocelots
@@ -1340,15 +1351,17 @@ w_k2plot <-
   scale_x_discrete(expand = expansion(add = 1)) +
   theme(panel.spacing.x = unit(0.1, "lines"),
         axis.title.x = element_blank(),
+        axis.title.y = element_text(angle = 90, size = 15),
         panel.grid = element_blank(),
-        axis.text.x = element_text(angle = 90, hjust = 0, vjust = 0.5, size = 8),
-        strip.text.x = element_text(face = "bold", size = 12),
-        strip.placement = "outside"
+        axis.text.x = element_text(angle = 90, hjust = 0, vjust = 0.5, size = 12),
+        strip.text.x = element_text(face = "bold", size = 15),
+        strip.placement = "outside",
+        axis.text.y = element_text(size = 15),
         ) +
   scale_fill_manual(values = c("V1" = "#01004c", "V2" = "#ffb2b0")) +
   guides(fill = "none")
 w_k2plot
-ggsave("wild_k2_admixture_altcol.png", w_k2plot, width = 15, height = 8, bg = "white")
+ggsave("wild_k2_admixture_edits2.png", w_k2plot, width = 15, height = 8, bg = "white")
 
 ####ranch only####
 r_k2_table <- read.table("Ranch_standard_final.2.q")
