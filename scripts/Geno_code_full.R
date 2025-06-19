@@ -1044,11 +1044,27 @@ dev.off()
 #read in data
 thin2_merged <- read.table("wild_thintest2_merged.hom", header = TRUE)
 ind_merged <- read.table("wild_thintest2_merged.ind", header = TRUE)
+
 #create data frame for analysis
 roh.df.merge <- ind_merged$IID #populate ID's
+colnames(roh.df.merge)[1] <- "IID"
 roh.df.merge <- as.data.frame(roh.df.merge) #create the data frame
 roh.df.merge$thin2_merged <- ((ind_merged$KB*1000)/2425730029)*100
 write.csv(roh.df.merge, "merged_roh_thin2.csv")
+summary(thin2_merged$KB)
+
+#average % genome in roh by population
+colnames(w_pop_id_df)[1] <- "IID"
+roh.df.merge.pop <- merge(roh.df.merge, w_pop_id_df, by = "IID", all = TRUE)
+population_mean_roh <- roh.df.merge.pop %>%
+  group_by(pop_id) %>%
+  summarise(Average = mean(thin2_merged, na.rm = TRUE),
+            Min = min(thin2_merged),
+            Max = max(thin2_merged),
+            Count = n(),
+            StdDev = sd(thin2_merged, na.rm = TRUE),
+            StdError = (sd(thin2_merged, na.rm = TRUE)/sqrt(n())))
+write.csv(population_mean_roh, "pop_mean_froh.csv")
 
 #calc bins
 thin2_merged$Length_MB <- thin2_merged$KB/1000
