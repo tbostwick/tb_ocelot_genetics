@@ -1458,6 +1458,7 @@ l_pop_colors <- c("Generic" = "#D66857",
                   "Refuge" = "#01004c")
 adap_base +
   geom_tippoint(aes(color = population), size = 2) +
+  geom_tiplab(aes(label = label), size = 3, hjust = -0.2) + #looking to see who the outlier individuals are
   theme_tree2() +
   theme(legend.position = "right") +
   scale_color_manual(values = l_pop_colors, name = "Population")

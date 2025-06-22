@@ -240,13 +240,20 @@ pca.data.ocelot.origins <- pca.data.ocelot.origins %>%
   mutate(V2 = gsub("-.*", "", V2))
 
 ggplot(pca.data.ocelot.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with individual ID's and by origin
-  geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 2) +
+  geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 3) +
   scale_color_manual(name = "Origin", values = c("Refuge" = "purple4", "Ranch" = "orchid", 
                                                  "Brazilian" = "#3B967f", "Generic" = "#D66857")) +
-  scale_shape_manual(name = "Origin", values = c("Refuge" = 19, "Ranch" = 17,
-                                                 "Brazilian" = 15, "Generic" = 8)) +
-  labs(x = "PC1", y = "PC2", title = "Ocelot PCA by Individual") +
-  theme_minimal()
+  scale_shape_manual(name = "Origin", values = c("Refuge" = 19, "Ranch" = 19,
+                                                 "Brazilian" = 17, "Generic" = 17)) +
+  labs(x = "PC1", y = "PC2") +
+  theme_minimal()+
+  theme(
+    legend.title = element_text(size = 14),
+    legend.text = element_text(size = 12),
+    axis.title.x = element_text(size = 14),
+    axis.title.y = element_text(size = 14),
+    axis.text = element_text(size = 12)
+  )
 
 
 
@@ -682,9 +689,10 @@ ggplot() +
         legend.position = "none")
 
 #zoo -- populate dataframe with ID's and percent genome for each parameter test
-roh.df.z <-zoo_roh_thin_test2_results$IID #populate ID's
+zoo_roh <- read.table("zoo_roh_thin_test2.hom.indiv", header = TRUE)
+roh.df.z <-zoo_roh$IID #populate ID's
 roh.df.z <- as.data.frame(roh.df.z) #create the data frame
-roh.df.z$Thin_test2 <- ((zoo_roh_thin_test2_results$KB*1000)/2425730029)*100
+roh.df.z$Thin_test2 <- ((zoo_roh$KB*1000)/2425730029)*100
 write.csv(roh.df.z, "zoo_roh_percentgenome.csv")
 z_pop_id <-read.csv("zoo_origins.csv")
 colnames(z_pop_id)[1] <- "IID"
@@ -697,22 +705,70 @@ origin_mean_roh <- roh_zoo %>%
             Count = n(),
             StdDev = sd(Thin_test2, na.rm = TRUE),
             StdError = (sd(Thin_test2, na.rm = TRUE)/sqrt(n())))
+#checking outliers
+merged_df <- merge(roh_zoo, origin_mean_roh, by = "Cat.Group")
+merged_df$z_score <- abs((merged_df$Thin_test2 - merged_df$Average) / merged_df$StdDev)
+outliers_1sd <- sum(merged_df$z_score > 1, na.rm = TRUE)
+outliers_2sd <- sum(merged_df$z_score > 2, na.rm = TRUE)
+outliers_3sd <- sum(merged_df$z_score > 3, na.rm = TRUE)
 
+outlier_summary <- data.frame(
+  standard_deviations = c(1, 2, 3),
+  count_outside = c(outliers_1sd, outliers_2sd, outliers_3sd),
+  percent_outside = c(outliers_1sd/nrow(merged_df) * 100,
+                      outliers_2sd/nrow(merged_df) * 100,
+                      outliers_3sd/nrow(merged_df) * 100)
+)
+
+outliers_by_group <- merged_df %>%
+  group_by(Cat.Group) %>%
+  summarise(
+    total_individuals = n(),
+    outside_1sd = sum(z_score > 1, na.rm = TRUE),
+    outside_2sd = sum(z_score > 2, na.rm = TRUE),
+    outside_3sd = sum(z_score > 3, na.rm = TRUE),
+    pct_outside_1sd = outside_1sd / total_individuals * 100,
+    pct_outside_2sd = outside_2sd / total_individuals * 100,
+    pct_outside_3sd = outside_3sd / total_individuals * 100
+  )
+
+outliers_1sd_individuals <- merged_df[merged_df$z_score > 1, ]
+outliers_2sd_individuals <- merged_df[merged_df$z_score > 2, ]
+outliers_3sd_individuals <- merged_df[merged_df$z_score > 3, ]
+
+#adding wild individuals to the plot
+roh.df.merge1 <- ind_merged$IID #populate ID's
+colnames(roh.df.merge1)[1] <- "IID"
+roh.df.merge1 <- as.data.frame(roh.df.merge1) #create the data frame
+roh.df.merge1$thin2_merged <- ((ind_merged$KB*1000)/2425730029)*100
+write.csv(roh.df.merge, "merged_roh_thin2.csv")
+summary(thin2_merged$KB)
+roh.df.merge1 <- merge(roh.df.merge1, w_pop_id_df, by = "IID", all = TRUE)
+colnames(roh.df.merge1)[2] <- "Thin_test2"
+colnames(roh.df.merge1)[3] <- "Cat.Group"
+lepa_roh_df <- bind_rows(
+  roh.df.merge1 %>% select(IID, Thin_test2, Cat.Group),  # adjust column names as needed
+  roh_zoo %>% select(IID, Thin_test2, Cat.Group)
+)
+write.csv(lepa_roh_df, "supplemental_table_roh.csv")
+#plotting
 ggplot() +
   # violin plot
-  geom_violin(data = roh_zoo, aes(x = Cat.Group, y = Thin_test2, fill = Cat.Group), 
+  geom_violin(data = lepa_roh_df, aes(x = Cat.Group, y = Thin_test2, fill = Cat.Group), 
               alpha = 0.7) +
   # Add individual points
-  geom_jitter(data = roh_zoo, aes(x = Cat.Group, y = Thin_test2), 
+  geom_jitter(data = lepa_roh_df, aes(x = Cat.Group, y = Thin_test2), 
               width = 0.1, alpha = 0.4, size = 1) +
   # Add population means with error bars
   geom_point(data = origin_mean_roh, aes(x = Cat.Group, y = Average), 
-             color = "red", size = 4, shape = 18) +
+             color = "black", size = 4, shape = 18) +
   geom_errorbar(data = origin_mean_roh, 
                 aes(x = Cat.Group, y = Average, 
-                    ymin = Average - StdError, ymax = Average + StdError),
-                color = "red", width = 0.2, size = 1) +
-  scale_fill_manual(values = c("Generic" = "#D66857", "Brazilian" = "#3B967f")) +
+                    ymin = pmax(0, Average - StdDev), 
+                    ymax = Average + StdDev),
+                color = "black", width = 0.2, size = 1) +
+  scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c",
+                               "Generic" = "#D66857", "Brazilian" = "#3B967f")) +
   # Labels and theme
   labs(x = "Origin", y = expression(F[ROH])) +
   theme_minimal() +
@@ -1046,12 +1102,13 @@ thin2_merged <- read.table("wild_thintest2_merged.hom", header = TRUE)
 ind_merged <- read.table("wild_thintest2_merged.ind", header = TRUE)
 
 #create data frame for analysis
-roh.df.merge <- ind_merged$IID #populate ID's
-colnames(roh.df.merge)[1] <- "IID"
-roh.df.merge <- as.data.frame(roh.df.merge) #create the data frame
-roh.df.merge$thin2_merged <- ((ind_merged$KB*1000)/2425730029)*100
+roh.df.merge1 <- ind_merged$IID #populate ID's
+colnames(roh.df.merge1)[1] <- "IID"
+roh.df.merge1 <- as.data.frame(roh.df.merge1) #create the data frame
+roh.df.merge1$thin2_merged <- ((ind_merged$KB*1000)/2425730029)*100
 write.csv(roh.df.merge, "merged_roh_thin2.csv")
 summary(thin2_merged$KB)
+roh.df.merge1 <- merge(roh.df.merge1, w_pop_id_df, by = "IID", all = TRUE)
 
 #average % genome in roh by population
 colnames(w_pop_id_df)[1] <- "IID"
@@ -1476,11 +1533,11 @@ ggplot() +
               width = 0.1, alpha = 0.4, size = 1) +
   # Add population means with error bars
   geom_point(data = n_stats, aes(x = Pop, y = mean_pi_avg), 
-             color = "red", size = 4, shape = 18) +
+             color = "black", size = 4, shape = 18) +
   geom_errorbar(data = n_stats, 
                 aes(x = Pop, y = mean_pi_avg, 
                     ymin = mean_pi_avg - sd_pi_avg, ymax = mean_pi_avg + sd_pi_avg),
-                color = "red", width = 0.2, size = 1) +
+                color = "black", width = 0.2, size = 1) +
   scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c",
                                "Generic" = "#D66857", "Brazilian" = "#3B967f")) +
   # Labels and theme
@@ -1554,4 +1611,31 @@ for(i in 1:length(gen_list)) {
                                         Fis = fis))
 }
 print(diversity_results)
+write.csv(diversity_results, "diversity_statistics_by_pop.csv")
+
+#diversity results by individuals
+#creating data frame for results
+individual_results <- data.frame(
+  Individual = character(),
+  Ho = numeric(),
+  stringsAsFactors = FALSE
+)
+
+#making for loop
+for(i in 1:length(gen_list)) {
+  pop_name <- names(gen_list)[i]
+  gl_obj <- gen_list[[i]]
+  #added to avoid error in the gl.report function
+  gl_obj@other$loc.metrics.flags$monomorphs <- TRUE
+  #calc heterozygosity stats
+  het_stats <- gl.report.heterozygosity(gl_obj, method = "ind")
+  #extract values
+  individual_ids <- het_stats$ind.name
+  ho <- het_stats$Ho
+  #add to dataframe
+  individual_results <- rbind(individual_results, 
+                             data.frame(Individual = individual_ids,
+                                        Ho = ho))
+}
+print(individual_results)
 write.csv(diversity_results, "diversity_statistics_by_pop.csv")
