@@ -1304,6 +1304,110 @@ for (sample_id in unique_samples) {
 }
 
 
+###plotting chrom 10 only for three individuals
+#read in hom file
+merg_roh <- read.table("wild_thintest2_merged.hom", header = TRUE)
+#make data frame for plotting
+merged_plot <- data.frame(
+  chr = paste0(merg_roh$CHR),  # Add 'chr' prefix if needed
+  start = merg_roh$BP1,
+  end = merg_roh$BP2,
+  kb = merg_roh$KB,           # ROH length in KB
+  nsnp = merg_roh$NSNP,       # Number of SNPs in ROH
+  sample_id = merg_roh$IID    # Individual ID
+)
+#fixing chrome naming
+chr_map <- c(
+  "NC_058368.1" = "chr1",
+  "NC_058369.1" = "chr2",
+  "NC_058370.1" = "chr3",
+  "NC_058371.1" = "chr4",
+  "NC_058372.1" = "chr5",
+  "NC_058373.1" = "chr6",
+  "NC_058374.1" = "chr7",
+  "NC_058375.1" = "chr8",
+  "NC_058376.1" = "chr9",
+  "NC_058377.1" = "chr10",
+  "NC_058378.1" = "chr11",
+  "NC_058379.1" = "chr12",
+  "NC_058380.1" = "chr13",
+  "NC_058381.1" = "chr14",
+  "NC_058382.1" = "chr15",
+  "NC_058383.1" = "chr16",
+  "NC_058384.1" = "chr17",
+  "NC_058385.1" = "chr18"
+)
+merged_plot$chr <- chr_map[merged_plot$chr]
+#filtering dataframe for only chrome 10
+merged_plot <- merged_plot[merged_plot$chr == "chr10", ]
+#creating a custom genotype for karyoplotr for chrom 10 only
+feline_chr_sizes <- data.frame(
+  chr = "chr10", 
+  start = 1,
+  end = 115366950   # chr10 length only
+) 
+feline_genome_gr <- GRanges(seqnames = feline_chr_sizes$chr, ranges = IRanges(start = feline_chr_sizes$start, end = feline_chr_sizes$end)) #make into grange object
+ocel_genome <- feline_genome_gr #making the custom plot type
+seqlevels(ocel_genome) <- feline_chr_sizes$chr
+seqlengths(ocel_genome) <- feline_chr_sizes$end
+#making hom file into a granges file
+merg_gr <- GRanges(
+  seqnames = merged_plot$chr,
+  ranges = IRanges(start = merged_plot$start, end = merged_plot$end),
+  kb = merged_plot$kb,
+  nsnp = merged_plot$nsnp,
+  sample_id = merged_plot$sample_id)
+#creating the function to plot
+chr_10_plot <- function(sample_id, output_file = NULL) {
+  # Filter ROH data for specific individual
+  individual_roh <- merg_gr[mcols(merg_gr)$sample_id %in% sample_id]
+  
+  # Check if individual has any ROH on chr10
+  if (length(individual_roh) == 0) {
+    message(paste("No ROH found on chromosome 10 for", sample_id))
+    return(NULL)
+  }
+  
+  # Determine if output should go to a file
+  if (!is.null(output_file)) {
+    pdf(output_file, width = 10, height = 7)
+  }
+  #create the plot using the custom genome
+  w_kp <- plotKaryotype(genome = ocel_genome, plot.type = 1, main = paste("ROH on Chromosome 10 for", sample_id))
+  #kpAddChromosomeNames(w_kp, srt = 45, cex = 0.8) #not using this line for now
+  #plot individuals
+  kpRect(w_kp, 
+         chr = as.character(seqnames(individual_roh)), 
+         x0 = start(individual_roh), 
+         x1 = end(individual_roh),
+         y0 = 0, 
+         y1 = 1, 
+         col = "#FF000080",  # Semi-transparent red
+         border = "#FF0000",
+         r0 = 0.05, r1 = 0.95,
+         data.panel = "ideogram") #should plot directly onto the ideogram
+  # Close file if opened
+  if (!is.null(output_file)) {
+    dev.off()
+  }
+  # Return the filtered data
+  return(individual_roh)
+}
+#using the function
+unique_samples <- unique(merged_plot$sample_id)
+sanitize_filename <- function(name) {
+  gsub("[^A-Za-z0-9_]", "_", name)  # Replace anything that's not a letter, number, or underscore
+}
+dir.create("merg_roh_plot_chr10", showWarnings = FALSE)
+for (sample_id in unique_samples) {
+  safe_id <- sanitize_filename(sample_id)
+  output_file <- paste0("merg_roh_plot_chr10/", safe_id, "_chr10_roh_plot.pdf")
+  chr_10_plot(sample_id, output_file)
+}
+
+
+
+
 
 ################################################################################
 ##DAPC analysis using adegenet package -- 4/17/25
@@ -1586,8 +1690,11 @@ gen_list <- list(
 diversity_results <- data.frame(
   Population = character(),
   He = numeric(),
+  He_SE = numeric(),
   Ho = numeric(),
+  Ho_SE = numeric(),
   Fis = numeric(),
+  Fis_SE = numeric(),
   stringsAsFactors = FALSE
 )
 
@@ -1597,18 +1704,42 @@ for(i in 1:length(gen_list)) {
   gl_obj <- gen_list[[i]]
   #added to avoid error in the gl.report function
   gl_obj@other$loc.metrics.flags$monomorphs <- TRUE
-  #calc heterozygosity stats
-  het_stats <- gl.report.heterozygosity(gl_obj, method = "pop")
-  #extract values
-  he <- het_stats$He
-  ho <- het_stats$Ho
-  fis <- 1 - (ho / he)
-  #add to dataframe
+  
+  # Debug: Check the structure of het_stats
+  # Uncomment the next line to see what's available:
+  # print(str(gl.report.heterozygosity(gl_obj, method = "pop")))
+  
+  #calc heterozygosity stats - use method = "loc" to get per-locus values
+  het_stats_pop <- gl.report.heterozygosity(gl_obj, method = "pop")
+  het_stats_loc <- gl.report.heterozygosity(gl_obj, method = "loc")
+  
+  # Extract per-locus values for calculating standard error
+  he_values <- het_stats_loc$He  # Expected heterozygosity per locus
+  ho_values <- het_stats_loc$Ho  # Observed heterozygosity per locus
+  
+  # Calculate means
+  he_mean <- mean(he_values, na.rm = TRUE)
+  ho_mean <- mean(ho_values, na.rm = TRUE)
+  
+  # Calculate standard errors
+  he_se <- sd(he_values, na.rm = TRUE) / sqrt(sum(!is.na(he_values)))
+  ho_se <- sd(ho_values, na.rm = TRUE) / sqrt(sum(!is.na(ho_values)))
+  
+  # Calculate Fis per locus and its standard error
+  fis_values <- 1 - (ho_values / he_values)
+  fis_values <- fis_values[is.finite(fis_values)]  # Remove infinite/NaN values
+  fis_mean <- mean(fis_values, na.rm = TRUE)
+  fis_se <- sd(fis_values, na.rm = TRUE) / sqrt(sum(!is.na(fis_values)))
+  
+  #add to dataframe with standard errors
   diversity_results <- rbind(diversity_results, 
                              data.frame(Population = pop_name,
-                                        He = he,
-                                        Ho = ho,
-                                        Fis = fis))
+                                        He = he_mean,
+                                        He_SE = he_se,
+                                        Ho = ho_mean,
+                                        Ho_SE = ho_se,
+                                        Fis = fis_mean,
+                                        Fis_SE = fis_se))
 }
 print(diversity_results)
 write.csv(diversity_results, "diversity_statistics_by_pop.csv")
