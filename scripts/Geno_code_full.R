@@ -626,16 +626,16 @@ roh.df <- as.data.frame(roh.df) #create the data frame
 roh.df$pop_id <- w_pop_id$pop_id #adding population id information
 roh.df$Smith_full <- ((wild_smith_results$KB*1000)/2425730029)*100 #unthinned smith param
 roh.df$Saremi_full <- ((wild_saremi_results$KB*1000)/2425730029)*100 #unthinned saremi param
-roh.df$Saremi_thin <- ((wild_saremi_thin_results$KB*1000)/2425730029)*100 #thinned saremi param
+roh.df$Saremi_thin <- ((wild_saremi_thin_results$KB*10000)/2425730029)*100
+roh.df$Thin_test4 <- ((wild_roh_thin_test4_results$KB*1000)/2425730029)*100
+roh.df$Composite_thin <- ((wild_roh_comp_results$KB*1000)/2425730029)*100
+roh.df$Composite_thin2 <- ((wild_roh_comp2_results$KB*1000)/2425730029)*100
+##writing as csv0)/2425730029)*100 #thinned saremi param
 roh.df$Meyer_thin <- ((wild_meyer_roh_thin_results$KB*1000)/2425730029)*100 #thinned meyermans param
 roh.df$Strict_thin <- ((wild_roh_thin_strict1_results$KB*1000)/2425730029)*100
 roh.df$Thin_test1 <- ((wild_roh_thin_test1_results$KB*1000)/2425730029)*100
 roh.df$Thin_test2 <- ((wild_roh_thin_test2_results$KB*1000)/2425730029)*100
-roh.df$Thin_test3 <- ((wild_roh_thin_test3_results$KB*1000)/2425730029)*100
-roh.df$Thin_test4 <- ((wild_roh_thin_test4_results$KB*1000)/2425730029)*100
-roh.df$Composite_thin <- ((wild_roh_comp_results$KB*1000)/2425730029)*100
-roh.df$Composite_thin2 <- ((wild_roh_comp2_results$KB*1000)/2425730029)*100
-##writing as csv
+roh.df$Thin_test3 <- ((wild_roh_thin_test3_results$KB*10
 write.csv(roh.df, "wild_roh_percentgenome.csv")
 roh.df <- read.csv("wild_roh_percentgenome.csv", header = TRUE)
 #average % genome in roh by population
@@ -663,20 +663,24 @@ ggplot() +
   theme(plot.title = element_text(hjust = 0.5, face = "bold"),
         axis.title = element_text(face = "bold"))
 
-#plot 2
+#violin plot of wild FROH
+roh.df <- read.csv("wild_roh_percentgenome.csv", header = TRUE) #read in data
+population_mean_roh <- read.csv("pop_mean_froh_merged.csv", header = TRUE) #read in data
+roh.df <- rename(roh.df, ID = roh.df)
+roh.df <- left_join(roh.df, l_pop, by = "ID")
 ggplot() +
   # violin plot
-  geom_violin(data = roh.df, aes(x = pop_id, y = Thin_test2, fill = pop_id), 
+  geom_violin(data = roh.df, aes(x = Pop, y = Thin_test2, fill = Pop), 
                alpha = 0.7) +
   # Add individual points
-  geom_jitter(data = roh.df, aes(x = pop_id, y = Thin_test2), 
+  geom_jitter(data = roh.df, aes(x = Pop, y = Thin_test2), 
               width = 0.1, alpha = 0.4, size = 1) +
   # Add population means with error bars
   geom_point(data = population_mean_roh, aes(x = pop_id, y = Average), 
              color = "red", size = 4, shape = 18) +
   geom_errorbar(data = population_mean_roh, 
                 aes(x = pop_id, y = Average, 
-                    ymin = Average - StdError, ymax = Average + StdError),
+                    ymin = Average - 2*StdDev, ymax = Average + 2*StdDev),
                 color = "red", width = 0.2, size = 1) +
   scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c")) +
   # Labels and theme
@@ -751,7 +755,8 @@ lepa_roh_df <- bind_rows(
   roh_zoo %>% select(IID, Thin_test2, Cat.Group)
 )
 write.csv(lepa_roh_df, "supplemental_table_roh.csv")
-#plotting
+#FROH violin plot with both wild and zoo present
+lepa_roh_df <- read.csv("supplemental_table_roh.csv")
 ggplot() +
   # violin plot
   geom_violin(data = lepa_roh_df, aes(x = Cat.Group, y = Thin_test2, fill = Cat.Group), 
@@ -777,7 +782,29 @@ ggplot() +
         axis.title = element_text(size = 14),
         plot.title = element_text(size = 16, hjust = 0.5),
         legend.position = "none")
-
+#FROH violin plot with just zoo
+ggplot() +
+  # violin plot
+  geom_violin(data = roh_zoo, aes(x = Cat.Group, y = Thin_test2, fill = Cat.Group), alpha = 0.7) +
+                # Add individual points
+                geom_jitter(data = roh_zoo, aes(x = Cat.Group, y = Thin_test2),
+                                        width = 0.1, alpha = 0.4, size = 1) +
+                              # Add population means with error bars
+                              geom_point(data = origin_mean_roh, aes(x = Cat.Group, y = Average),
+                              color = "black", size = 4, shape = 18) +
+                geom_errorbar(data = origin_mean_roh, 
+                              aes(x = Cat.Group, y = Average, 
+                                  ymin = pmax(0, Average - 2*StdDev), ymax = Average + 2*StdDev),
+                              color = "black", width = 0.2, size = 1) +
+                scale_fill_manual(values = c("Generic" = "#D66857", "Brazilian" = "#3B967f")) +
+  # Labels and theme
+  labs(x = "Origin", y = expression(F[ROH])) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, hjust = 0.5),
+        legend.position = "none")
 #zoo descriptive stats
 z_roh_t2 <- read.table("zoo_roh_thin_test2.hom", header = T)
 z_roh_descript <- merge(z_roh_t2, z_pop_id, by = "IID", all = TRUE)
@@ -1605,7 +1632,7 @@ system("plink2 --bfile Zoo_refiltered --chr-set 18 --allow-extra-chr --export vc
 system("plink2 --bfile Wild_refiltered --chr-set 18 --allow-extra-chr --export vcf-4.2 bgz --out wild_refiltered_42")
 
 ####Fst and nucleotide diversity####
-
+summary_pi<- read.csv("summary_pi_per_individual.csv", header = TRUE)
 #nucleotide diversitt summary -- reading in data
 nucleotide_data_clean <- summary_pi %>%
   mutate(individual = gsub("-.*", "", individual),
@@ -1640,7 +1667,7 @@ ggplot() +
              color = "black", size = 4, shape = 18) +
   geom_errorbar(data = n_stats, 
                 aes(x = Pop, y = mean_pi_avg, 
-                    ymin = mean_pi_avg - sd_pi_avg, ymax = mean_pi_avg + sd_pi_avg),
+                    ymin = mean_pi_avg - 2*sd_pi_avg, ymax = mean_pi_avg + 2*sd_pi_avg),
                 color = "black", width = 0.2, size = 1) +
   scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c",
                                "Generic" = "#D66857", "Brazilian" = "#3B967f")) +
