@@ -90,6 +90,10 @@ system("plink2 --bfile Generic_standard_final --chr-set 18 --export vcf-4.2 bgz 
 system("plink2 --bfile Brazilian_standard_final --chr-set 18 --export vcf-4.2 bgz --out Brazilian_standard_final")
 system("plink2 --bfile LEPA_standard_final --chr-set 18 --export vcf-4.2 bgz --out LEPA_standard_final")
 
+####Subsetting the groups from the whole LEPA standard final after filtering together####
+system("plink --bfile LEPA_standard_final --keep wild_subset.txt --chr-set 18 --make-bed --out Wild_Standard_postsubset")
+system("plink --bfile LEPA_standard_final --keep gen_braz_subset.txt --chr-set 18 --make-bed --out Zoo_Standard_postsubset")
+
 ####FINAL FILTERING -- LINKAGE DISEQUILIBRIUM PRUNING####
 ##Ranch
 system("plink --bfile Ranch_standard_final --chr-set 18 --keep-allele-order --indep 50 5 2 --out Ranch_LDpruned_0.5_out") #makes an out and in files of SNps to keep and SNPs to remove
@@ -202,25 +206,35 @@ ggplot(pca.data.zoo.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with in
 pca.variance <- read.table("pca_zoo.eigenval", header = FALSE) #load pca variance results
 hist(pca.variance$V1) ##not working right
 
-#PCA on Wild individuals
+##PCA on Wild individuals - updated for thesis
+#reading in data
 system("plink --bfile Wild_refiltered --allow-extra-chr --pca --chr-set 18 --out pca_wild") #run the pca code, specified the number of chromosomes
 pca.data.wild <- read.table("pca_wild.eigenvec", header=FALSE) #load pca results from the eigenvec file
+eigenvalues <- read.table("pca_wild.eigenval", header=FALSE)$V1 #read in eigenvalues to calc variance
+#calc variance
+total_variance <- sum(eigenvalues)
+pc1_variance <- round((eigenvalues[1] / total_variance) * 100, 2)
+pc2_variance <- round((eigenvalues[2] / total_variance) * 100, 2)
+#adding population information
 wild_origins <- read.csv("wild_origins.csv", header = TRUE) #read in origins file
 pca.data.wild.origins <- left_join(pca.data.wild, wild_origins, by = "V2") #append origin data to pca data
 pca.data.wild.origins <- pca.data.wild.origins %>%
   mutate(V2 = gsub("-.*", "", V2))
-
-ggplot(pca.data.wild.origins, aes(x=V3,y=V4)) +  #plot with individual ID's and by origin
+#plotting
+wild_pca <- ggplot(pca.data.wild.origins, aes(x=V3,y=V4)) +  #plot with individual ID's and by origin
   geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 3) +
   geom_rect(data = subset(pca.data.wild.origins, V2 %in% c("E35M", "LO01F")),
             aes(xmin = min(V3) - 0.02, xmax = max(V3) + 0.04,
                 ymin = min(V4) - 0.02, ymax = max(V4) + 0.04),
             fill = NA, color = "black", linewidth = 1, linetype = "dashed") +
-  geom_text(data = subset(pca.data.wild.origins, V2 %in% c("E35M", "LO01F")),
-            aes(label=V2), vjust=-1, hjust=-0.2, size=4, color = "black") + #V2 is ID
+  geom_text(data = subset(pca.data.wild.origins, V2 %in% c("E35M", "LO01F", "OM331", "LO03M")),
+            aes(label=V2), vjust=-1, hjust=-0.2, size=4, color = "black") + #V2 is ID\
+  geom_text(data = subset(pca.data.wild.origins, V2 %in% c("E29M")),
+            aes(label=V2), vjust=1.3, hjust=-0.2, size=4, color = "black") + #V2 is ID
   scale_color_manual(name = "Origin", values = c("Refuge" = "#01004c", "Ranch" = "orchid")) +
   scale_shape_manual(name = "Origin", values = c("Refuge" = 19, "Ranch" = 17)) +
-  labs(x = "PC1", y = "PC2") +
+  labs(x = paste0("PC1 (", pc1_variance, "%)"),
+       y = paste0("PC2 (", pc2_variance, "%)")) +
   theme_minimal() +
   theme(
     legend.title = element_text(size = 14),
@@ -229,23 +243,31 @@ ggplot(pca.data.wild.origins, aes(x=V3,y=V4)) +  #plot with individual ID's and 
     axis.title.y = element_text(size = 14),
     axis.text = element_text(size = 12)
   )
+wild_pca
 
-
-#PCA on all ocelots
-system("plink --bfile LEPA_refiltered --pca --chr-set 18 --allow-extra-chr --out pca_LP") #run the pca code, specified the number of chromosomes
-pca.data.LP <- read.table("pca_LP.eigenvec", header=FALSE) #load pca results from the eigenvec file
+##PCA on all ocelots -- updated for thesis
+#read in data
+system("plink --bfile LEPA_standard_final --pca --chr-set 18 --allow-extra-chr --out pca_LP_final") #run the pca code, specified the number of chromosomes
+pca.data.LP <- read.table("pca_LP_final.eigenvec", header=FALSE) #load pca results from the eigenvec file
+eigenvalues <- read.table("pca_LP_final.eigenval", header=FALSE)$V1 #read in eigenvalues to calc variance
+#calc variance
+total_variance <- sum(eigenvalues)
+pc1_variance <- round((eigenvalues[1] / total_variance) * 100, 2)
+pc2_variance <- round((eigenvalues[2] / total_variance) * 100, 2)
+#adding pop info
 ocelot.origins <- read.csv("LP_origins.csv", header = TRUE) #read in origins file
 pca.data.ocelot.origins <- left_join(pca.data.LP, ocelot.origins, by = "V2") #append origin data to pca data
 pca.data.ocelot.origins <- pca.data.ocelot.origins %>%
   mutate(V2 = gsub("-.*", "", V2))
-
-ggplot(pca.data.ocelot.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with individual ID's and by origin
+#plot
+lepa_pca <- ggplot(pca.data.ocelot.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with individual ID's and by origin
   geom_point(aes(shape = Cat.Group, color = Cat.Group), size = 3) +
   scale_color_manual(name = "Origin", values = c("Refuge" = "purple4", "Ranch" = "orchid", 
                                                  "Brazilian" = "#3B967f", "Generic" = "#D66857")) +
   scale_shape_manual(name = "Origin", values = c("Refuge" = 19, "Ranch" = 19,
                                                  "Brazilian" = 17, "Generic" = 17)) +
-  labs(x = "PC1", y = "PC2") +
+  labs(x = paste0("PC1 (", pc1_variance, "%)"),
+       y = paste0("PC2 (", pc2_variance, "%)")) +
   theme_minimal()+
   theme(
     legend.title = element_text(size = 14),
@@ -254,27 +276,30 @@ ggplot(pca.data.ocelot.origins, aes(x=V3,y=V4, color = Cat.Group)) +  #plot with
     axis.title.y = element_text(size = 14),
     axis.text = element_text(size = 12)
   )
-
+lepa_pca
 
 
 ####KING Values####
-#king-robust kingship estimator for zoo individuals
-system("plink2 --bfile Zoo_refiltered --make-king-table --allow-extra-chr --chr-set 18 --out zoo_KING")
-zoo.king.matrix <- read.table("zoo_KING.kin0", header = FALSE) #make king table into object
+#king-robust kingship estimator for zoo individuals -- UPDATED FOR THESIS
+system("plink2 --bfile Zoo_Standard_postsubset --make-king-table --allow-extra-chr --chr-set 18 --out zoo_KING_manu")
+zoo.king.matrix <- read.table("zoo_KING_manu.kin0", header = FALSE) #make king table into object
 colnames(zoo.king.matrix) <- c("#FID1", "IID1", "FID2", "IID2", "NSNP", "HETHET", "IBS0", "KINSHIP") #add column header
 #remove "-x" from the individual id's
 zoo.king.matrix <- zoo.king.matrix %>%
   mutate(IID1 = gsub("-.*", "", IID1),
          IID2 = gsub("-.*", "", IID2))
 #make csv from the .kin0 file
-write.csv(zoo.king.matrix, "zoo_pairwise_kinship_refiltered.csv")
+write.csv(zoo.king.matrix, "zoo_pairwise_kinship_manu.csv")
 
 #heat map of kinship for zoo individuals -- binned
-ggplot(data = melted_kin_zoo, aes(x=IID1, y=IID2, fill = value)) +
+zoo.king.matrix <- read.csv("zoo_pairwise_kinship_manu.csv", header = TRUE) #read in data from previous step
+zoo.king.matrix$IID1 <- as.factor(zoo.king.matrix$IID1) #changing the id names to factors to plot correctly
+zoo.king.matrix$IID2 <- as.factor(zoo.king.matrix$IID2)
+ggplot(data = zoo.king.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
   geom_tile(color="white") +
   scale_fill_stepsn(name = "Kinship", breaks = c(0, 0.04, 0.1, 0.2),
                     limit = c(0, 0.3),
-                    labels = c("Unrelated", "First Cousins", "Half Sibs", "Full Sib/PO"),
+                    labels = c("Unrelated", "3rd Degree", "2nd Degree", "1st Degree"),
                     aesthetics = "fill",
                     space = "Lab",
                     colors = c("grey100", "gold1", "orangered", "firebrick"))+
@@ -286,22 +311,22 @@ ggplot(data = melted_kin_zoo, aes(x=IID1, y=IID2, fill = value)) +
 hist(zoo.king.matrix$KINSHIP)
 
 #king-robust kingship estimator for wild individuals
-system("plink2 --bfile Wild_refiltered --make-king-table --allow-extra-chr --chr-set 18 --out wild_KING")
-king.wild.matrix <- read.table("wild_KING.kin0", header = FALSE) #make king table into object
+system("plink2 --bfile Wild_Standard_postsubset --make-king-table --allow-extra-chr --chr-set 18 --out wild_KING_manu")
+king.wild.matrix <- read.table("wild_KING_manu.kin0", header = FALSE) #make king table into object
 colnames(king.wild.matrix) <- c("#FID1", "IID1", "FID2", "IID2", "NSNP", "HETHET", "IBS0", "KINSHIP") #add column header
 #remove "-x" from the individual id's
 king.wild.matrix <- king.wild.matrix %>%
   mutate(IID1 = gsub("-.*", "", IID1),
          IID2 = gsub("-.*", "", IID2))
 #make csv from the .kin0 file
-write.csv(king.wild.matrix, "wild_pairwise_kinship_refiltered.csv")
+write.csv(king.wild.matrix, "wild_pairwise_kinship_manu.csv")
 
 #heat map of kinship for wild individuals -- binned
-ggplot(data = melted_kin_wild, aes(x=IID1, y=IID2, fill = value)) +
+ggplot(data = king.wild.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
   geom_tile(color="white") +
   scale_fill_stepsn(name = "Kinship", breaks = c(0, 0.04, 0.1, 0.2),
                     limit = c(0, 0.3),
-                    labels = c("Unrelated", "First Cousins", "Half Sibs", "Full Sib/PO"),
+                    labels = c("Unrelated", "3rd Degree", "2nd Degree", "1st Degree"),
                     aesthetics = "fill",
                     space = "Lab",
                     colors = c("grey100", "gold1", "orangered", "firebrick"))+
@@ -635,7 +660,7 @@ roh.df$Meyer_thin <- ((wild_meyer_roh_thin_results$KB*1000)/2425730029)*100 #thi
 roh.df$Strict_thin <- ((wild_roh_thin_strict1_results$KB*1000)/2425730029)*100
 roh.df$Thin_test1 <- ((wild_roh_thin_test1_results$KB*1000)/2425730029)*100
 roh.df$Thin_test2 <- ((wild_roh_thin_test2_results$KB*1000)/2425730029)*100
-roh.df$Thin_test3 <- ((wild_roh_thin_test3_results$KB*10
+roh.df$Thin_test3 <- ((wild_roh_thin_test3_results$KB*10))
 write.csv(roh.df, "wild_roh_percentgenome.csv")
 roh.df <- read.csv("wild_roh_percentgenome.csv", header = TRUE)
 #average % genome in roh by population

@@ -9,6 +9,7 @@
 setwd("C:/Users/kutab016/Documents/TB_Files/1_Thesis/3_Data/6_Cleaned Data/Genomics/1_WorkingGenomicsFiles/Samba_analyses")
 
 ## Load Packages ##
+install.packages("ggrepel")
 install.packages("devtools")
 install.packages("tidyverse")
 install.packages("hierfstat")
@@ -33,7 +34,7 @@ library(pcadapt)
 library(qvalue)
 library(PopGenome)
 library(VennDiagram)
-
+library(ggrepel)
 #installing and loading samba
 source("https://github.com/mennodejong1986/SambaR/raw/master/SAMBAR_v1.09.txt")
 getpackages()
@@ -1416,7 +1417,7 @@ write.table(all_common, "GF_adaptive_allmethods_manufilt.txt", row.names = FALSE
 system("plink2 --vcf gen_ref_OT_filt.vcf.gz --chr-set 18 --allow-extra-chr --extract GF_adaptive_allmethods_manufilt.txt --export vcf bgz --out GF_adaptive_new")
 system("plink2 --vcf gen_ref_OT_filt.vcf.gz --chr-set 18 --allow-extra-chr --exclude GF_adaptive_allmethods_manufilt.txt --export vcf bgz --out GF_neutral_new")
 
-##create distance matrix for trees
+##create distance matrix for trees -- UPDATED FROM HERE FOR THESIS
 #load in vcfs
 adaptive_snps <- read.vcfR("GF_adaptive_new.vcf.gz")
 neutral_snps <- read.vcfR("GF_neutral_new.vcf.gz")
@@ -1452,13 +1453,35 @@ pop_data_clean <- pop_data %>%
 adaptive_nj_tree$tip.label <- pop_data_clean$sample
 neut_nj_tree$tip.label <- pop_data_clean$sample
 
+#adding sequential numbers to plot on the tree to generic individuals only, refuge gets NA
+pop_data_clean <- pop_data_clean %>%
+  mutate(individual_number = ifelse(population == "Generic", 
+                                    cumsum(population == "Generic"), 
+                                    NA))
+
 #create tree
 adap_base <- ggtree(adaptive_nj_tree, layout = "unrooted") %<+% pop_data_clean
 l_pop_colors <- c("Generic" = "#D66857", 
                   "Refuge" = "#01004c")
 adap_base +
   geom_tippoint(aes(color = population), size = 2) +
-  geom_tiplab(aes(label = label), size = 3, hjust = -0.2) + #looking to see who the outlier individuals are
+  geom_text_repel(data = function(x) x[!is.na(x$individual_number), ],
+                  aes(label = individual_number), 
+                  size = 3, 
+                  max.overlaps = Inf,
+                  seed = 671,
+                  max.time = 5,      # More time for optimization
+                  max.iter = 20000,  # More iterations
+                  box.padding = 0.7,        # More space around labels
+                  point.padding = 0.7,      # More space around points
+                  min.segment.length = 0,   # Always draw connecting lines
+                  segment.color = "gray50", # Make lines visible
+                  segment.size = 0.5,       # Thicker lines
+                  segment.alpha = 0.8,      # Semi-transparent lines
+                  force = 0.04,                # Stronger repulsion force
+                  force_pull = 0.25,         # Pull labels toward their points
+                  nudge_x = 0.038,           # Push all labels outward
+                  direction = "both") +     # Allow movement in both directions #labeling tips with numbers for individual lookup
   theme_tree2() +
   theme(legend.position = "right") +
   scale_color_manual(values = l_pop_colors, name = "Population")
@@ -1604,13 +1627,34 @@ pop_data_clean <- pop_data %>%
          sample = gsub("24040DeY_", "", sample))
 adaptive_nj_tree$tip.label <- pop_data_clean$sample
 neut_nj_tree$tip.label <- pop_data_clean$sample
-
+#adding sequential numbers to plot on the tree to generic individuals only, refuge gets NA
+pop_data_clean <- pop_data_clean %>%
+  mutate(individual_number = ifelse(population == "Generic", 
+                                    cumsum(population == "Generic"), 
+                                    NA))
 #create tree
 adap_base <- ggtree(adaptive_nj_tree, layout = "unrooted") %<+% pop_data_clean
 l_pop_colors <- c("Generic" = "#D66857", 
                   "Ranch" = "orchid")
 adap_base +
   geom_tippoint(aes(color = population), size = 2) +
+  geom_text_repel(data = function(x) x[!is.na(x$individual_number), ],
+                  aes(label = individual_number), 
+                  size = 3, 
+                  max.overlaps = Inf,
+                  seed = 671,
+                  max.time = 5,      # More time for optimization
+                  max.iter = 20000,  # More iterations
+                  box.padding = 0.7,        # More space around labels
+                  point.padding = 0.7,      # More space around points
+                  min.segment.length = 0,   # Always draw connecting lines
+                  segment.color = "gray50", # Make lines visible
+                  segment.size = 0.5,       # Thicker lines
+                  segment.alpha = 0.8,      # Semi-transparent lines
+                  force = 0.04,                # Stronger repulsion force
+                  force_pull = 0.25,         # Pull labels toward their points
+                  nudge_x = 0.028,           # Push all labels outward
+                  direction = "both") +     # Allow movement in both directions #labeling tips with numbers for individual lookup
   theme_tree2() +
   theme(legend.position = "right") +
   scale_color_manual(values = l_pop_colors, name = "Population")
@@ -1756,6 +1800,11 @@ pop_data_clean <- pop_data %>%
          sample = gsub("24040DeY_", "", sample))
 adaptive_nj_tree$tip.label <- pop_data_clean$sample
 neut_nj_tree$tip.label <- pop_data_clean$sample
+#numbering indivduals
+pop_data_clean <- pop_data_clean %>%
+  mutate(individual_number = ifelse(population == "Brazilian", 
+                                    cumsum(population == "Brazilian") + 18, #adding 18 to start the numbering at 19 for the brazilians
+                                    NA))
 
 #create tree
 adap_base <- ggtree(adaptive_nj_tree, layout = "unrooted") %<+% pop_data_clean
@@ -1763,6 +1812,23 @@ l_pop_colors <- c("Brazilian" = "#3B967f",
                   "Refuge" = "#01004c")
 adap_base +
   geom_tippoint(aes(color = population), size = 2) +
+  geom_text_repel(data = function(x) x[!is.na(x$individual_number), ],
+                  aes(label = individual_number), 
+                  size = 3, 
+                  max.overlaps = Inf,
+                  seed = 671,
+                  max.time = 5,      # More time for optimization
+                  max.iter = 20000,  # More iterations
+                  box.padding = 0.7,        # More space around labels
+                  point.padding = 0.7,      # More space around points
+                  min.segment.length = 0,   # Always draw connecting lines
+                  segment.color = "gray50", # Make lines visible
+                  segment.size = 0.5,       # Thicker lines
+                  segment.alpha = 0.8,      # Semi-transparent lines
+                  force = 0.05,                # Stronger repulsion force
+                  force_pull = 0.25,         # Pull labels toward their points
+                  nudge_x = -0.008,           # Push all labels outward
+                  direction = "both") +
   theme_tree2() +
   theme(legend.position = "right") +
   scale_color_manual(values = l_pop_colors, name = "Population")
@@ -1908,13 +1974,34 @@ pop_data_clean <- pop_data %>%
          sample = gsub("24040DeY_", "", sample))
 adaptive_nj_tree$tip.label <- pop_data_clean$sample
 neut_nj_tree$tip.label <- pop_data_clean$sample
-
+#numbering individuals
+pop_data_clean <- pop_data_clean %>%
+  mutate(individual_number = ifelse(population == "Brazilian", 
+                                    cumsum(population == "Brazilian") + 18, #adding 18 to start the numbering at 19 for the brazilians
+                                    NA))
 #create tree
 adap_base <- ggtree(adaptive_nj_tree, layout = "unrooted") %<+% pop_data_clean
 l_pop_colors <- c("Brazilian" = "#3B967f", 
                   "Ranch" = "orchid")
 adap_base +
   geom_tippoint(aes(color = population), size = 2) +
+  geom_text_repel(data = function(x) x[!is.na(x$individual_number), ],
+                  aes(label = individual_number), 
+                  size = 3, 
+                  max.overlaps = Inf,
+                  seed = 671,
+                  max.time = 5,      # More time for optimization
+                  max.iter = 20000,  # More iterations
+                  box.padding = 0.7,        # More space around labels
+                  point.padding = 0.7,      # More space around points
+                  min.segment.length = 0,   # Always draw connecting lines
+                  segment.color = "gray50", # Make lines visible
+                  segment.size = 0.5,       # Thicker lines
+                  segment.alpha = 0.8,      # Semi-transparent lines
+                  force = 0.02,                # Stronger repulsion force
+                  force_pull = 0.25,         # Pull labels toward their points
+                  nudge_x = 0,           # Push all labels outward
+                  direction = "both") +
   theme_tree2() +
   theme(legend.position = "right") +
   scale_color_manual(values = l_pop_colors, name = "Population")
