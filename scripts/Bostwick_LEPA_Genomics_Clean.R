@@ -51,6 +51,8 @@ library(ggthemes)
 library(patchwork)
 library(tidyr)
 library(stringr)
+library(dplyr)
+
 ##########################################################
 #Data Prep, filtering and LD Pruning
 ####Make bed bim fam files from vcf####
@@ -360,6 +362,8 @@ ggplot() +
         axis.title = element_text(face = "bold"))
 
 #violin plot of wild FROH
+l_pop <- read.csv("lepa_origins.csv")
+l_pop <- rename(l_pop, ID = individual)
 roh.df <- read.csv("wild_roh_percentgenome.csv", header = TRUE) #read in data
 population_mean_roh <- read.csv("pop_mean_froh_merged.csv", header = TRUE) #read in data
 roh.df <- rename(roh.df, ID = roh.df)
@@ -1146,7 +1150,7 @@ w_k2plot <-
   scale_fill_manual(values = c("V1" = "#01004c", "V2" = "#ffb2b0")) +
   guides(fill = "none")
 w_k2plot
-ggsave("wild_k2_admixture_edits2.png", w_k2plot, width = 15, height = 8, bg = "white")
+ggsave("wild_k2_admixture_Oct2025.png", w_k2plot, width = 15, height = 8, bg = "white")
 
 ####ranch only####
 r_k2_table <- read.table("Ranch_standard_final.2.q")
@@ -1235,21 +1239,45 @@ n_stats <- nucleo_by_pop %>%
     n_individuals = n(),
     .groups = 'drop'
   )
-#plotting nucleotide diversity
+#plotting nucleotide diversity -- wild only
 ggplot() +
   # violin plot
-  geom_violin(data = nucleo_by_pop, aes(x = Pop, y = mean_pi, fill = Pop), 
+  geom_violin(data = subset(nucleo_by_pop, Pop %in% c("Ranch", "Refuge")), 
+              aes(x = Pop, y = mean_pi, fill = Pop), 
               alpha = 0.7) +
   # Add individual points
-  geom_jitter(data = nucleo_by_pop, aes(x = Pop, y = mean_pi), 
-              width = 0.1, alpha = 0.4, size = 1) +
+  geom_jitter(data = subset(nucleo_by_pop, Pop %in% c("Ranch", "Refuge")), 
+              aes(x = Pop, y = mean_pi), 
+              width = 0.1, alpha = 0.4, size = 3) +
   # Add population means with error bars
-  geom_point(data = n_stats, aes(x = Pop, y = mean_pi_avg), 
+  geom_point(data = subset(n_stats, Pop %in% c("Ranch", "Refuge")), aes(x = Pop, y = mean_pi_avg), 
              color = "black", size = 4, shape = 18) +
-  geom_errorbar(data = n_stats, 
+  geom_errorbar(data = subset(n_stats, Pop %in% c("Ranch", "Refuge")), 
                 aes(x = Pop, y = mean_pi_avg, 
                     ymin = mean_pi_avg - 2*sd_pi_avg, ymax = mean_pi_avg + 2*sd_pi_avg),
                 color = "black", width = 0.2, size = 1) +
+  scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c")) +
+  # Labels and theme
+  labs(x = "Population", y = "Nucleotide Diversity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, hjust = 0.5),
+        legend.position = "none")
+
+###nucleotide diversity all pops
+ggplot() +
+  # violin plot
+  geom_violin(data = nucleo_by_pop, 
+              aes(x = Pop, y = mean_pi, fill = Pop), 
+              alpha = 0.7) +
+  # Add individual points
+  geom_jitter(data = nucleo_by_pop, aes(x = Pop, y = mean_pi), 
+              width = 0.1, alpha = 0.6, size = 4) +
+  # Add population means with error bars
+  geom_point(data = n_stats, aes(x = Pop, y = mean_pi_avg), 
+             color = "black", size = 4, shape = 18) +
   scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c",
                                "Generic" = "#D66857", "Brazilian" = "#3B967f")) +
   # Labels and theme
@@ -1260,6 +1288,7 @@ ggplot() +
         axis.title = element_text(size = 14),
         plot.title = element_text(size = 16, hjust = 0.5),
         legend.position = "none")
+
 
 ####expected and observed Heterozygosity####
 
