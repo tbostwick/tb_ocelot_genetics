@@ -25,6 +25,8 @@ chr_map <- data.frame(
   stringsAsFactors = FALSE
 )
 print(chr_map) ###weird ass chromosome names..... dunno what to do with that tbh, may need to remove this step and just name the variants
+#made it to here with the new data
+
 
 #apply that to the bim file directly
 for (i in 1:nrow(chr_map)) {
