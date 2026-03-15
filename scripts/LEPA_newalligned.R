@@ -1,16 +1,26 @@
-setwd("/Volumes/Expansion/TB_Working_Files")
+setwd("/Volumes/Expansion/2_TB_Working_Files") #WD if working out of the hard drive
+setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files") #WD if working off of the laptop
 ##looking at the new genome files for with the ocelot alignment
 ##reading in and performing basic tasks with the file to see how the data is organized
 ##creating filtered file to use on the rest of the analyses -- so can run from the computer rather than the hard drive
 ##will need to update main code with the new file names reflected -- so that it is contiguous, even if the actual code is ran from here
-
+##vcf has had minimal filtering, only basic quality control, and no imputation
 
 #to get plink to run on the mac, needed to delete the mac quarantine by using the following code in terminal:
     #xattr -d com.apple.quarantine ~/Documents/Masters_Work/Analyses/PLINK_Files/plink2_mac_20260228/plink2
 
+####data pre processing in bcftools in terminal####
+#setting working directory to use bcftools
+  #cd /Users/tylerbostwick/bcftools
+#creating an index file for the vcf, which is needed to run the subsetting
+  #./bcftools index /Volumes/Expansion/2_TB_Working_Files/joint_call.LAO03M.20251202.vcf.gz
+#subsetting the vcf to just contain the autosomes, the original file also has the sex chromosomes, mtDNA, and unplaced fragments
+  #./bcftools view -r A1_RagTag,A2_RagTag,A3_RagTag,B1_RagTag,B2_RagTag,B3_RagTag,B4_RagTag,C1_RagTag,C2_RagTag,C3_RagTag,D1_RagTag,D2_RagTag,D3_RagTag,D4_RagTag,E1_RagTag,E2_RagTag,E3_RagTag \ 
+  #/Volumes/Expansion/2_TB_Working_Files/joint_call.LAO03M.20251202.vcf.gz \
+  #-O z -o /Volumes/Expansion/2_TB_Working_Files/joint_call_autosomes.vcf.gz
 
-####reading creating plink files from the joint_call VCF file
-system("./plink2 --vcf joint_call.LAO03M.20251202.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 18 --make-bed --out SNP_AllChrom_AllInd")
+####reading creating plink files from the joint_call VCF file####
+system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 18 --make-bed --out SNP_AllChrom_AllInd")
       #89 individuals 112237606 variants remain after filter for depth and biallelic
 
 ####running initial file renaming to create the base file on which the filters will be applied
