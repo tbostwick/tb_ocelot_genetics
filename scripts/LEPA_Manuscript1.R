@@ -168,6 +168,7 @@ ggsave("wild_pca.png", dpi = 300)
 
 ####Kinship -- mostly done, needs accuracy check####
 ##king-robust kingship estimator for WILD individuals -- come back and recheck to accuracy? why all related?
+##kin values definitely over-representing the relationships, will need to address
 system("./plink2 --bfile Wild_Standard_postfilt_subset --make-king-table --allow-extra-chr --chr-set 17 --out wild_KING_manu")
 king.wild.matrix <- read.table("wild_KING_manu.kin0", header = FALSE) #make king table into object
 colnames(king.wild.matrix) <- c("#FID1", "IID1", "FID2", "IID2", "NSNP", "HETHET", "IBS0", "KINSHIP") #add column header
@@ -191,31 +192,46 @@ ggplot(data = king.wild.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
   theme_minimal()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
-##king-robust kingship estimator for ZOO individuals -- remove later, using to check
-##kinship definitely overrepresented with the new data, or settings are off for some reason
-system("./plink2 --bfile Zoo_Standard_postfilt_subset --make-king-table --allow-extra-chr --chr-set 17 --out zoo_KING_manu")
-zoo.king.matrix <- read.table("zoo_KING_manu.kin0", header = FALSE) #make king table into object
-colnames(zoo.king.matrix) <- c("#FID1", "IID1", "FID2", "IID2", "NSNP", "HETHET", "IBS0", "KINSHIP") #add column header
-#remove "-x" from the individual id's
-zoo.king.matrix <- zoo.king.matrix %>%
-  mutate(IID1 = gsub("-.*", "", IID1),
-         IID2 = gsub("-.*", "", IID2))
-#make csv from the .kin0 file
-write.csv(zoo.king.matrix, "zoo_pairwise_kinship_manu.csv")
 
-#heat map of kinship for zoo individuals -- binned
-zoo.king.matrix <- read.csv("zoo_pairwise_kinship_manu.csv", header = TRUE) #read in data from previous step
-zoo.king.matrix$IID1 <- as.factor(zoo.king.matrix$IID1) #changing the id names to factors to plot correctly
-zoo.king.matrix$IID2 <- as.factor(zoo.king.matrix$IID2)
-ggplot(data = zoo.king.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
-  geom_tile(color="white") +
-  scale_fill_stepsn(name = "Kinship", breaks = c(0, 0.04, 0.1, 0.2),
-                    limit = c(0, 0.3),
-                    labels = c("Unrelated", "3rd Degree", "2nd Degree", "1st Degree"),
-                    aesthetics = "fill",
-                    space = "Lab",
-                    colors = c("grey100", "gold1", "orangered", "firebrick"))+
-  labs(x="Individuals", y="Individuals")+
-  theme_minimal()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+####Admixture -- not done####
+##admixture plotting
+#.q files from ADMIXTURE performed on a mac computer; code as follows:
 
+
+
+
+
+###wild admixture plot
+#reading in and preparing data
+w_k2_table <- read.table("Wild_rf_standard.2.q")
+w_ids <- read.table("wild_pop_samp_id.txt")
+w_ids = rename(w_ids, sample_id = V1, pop_id = V2)
+w_k2 <- cbind(w_ids, w_k2_table)
+w_k2_long <- pivot_longer(
+  w_k2, cols = c(V1, V2),
+  names_to = "ancestry",
+  values_to = "proportion"
+) #pivots the table to the proportions are able to be plotted as stacked bars
+w_k2_long$pop_id <- str_to_upper(w_k2_long$pop_id)
+#plot code
+w_k2plot <-
+  ggplot(w_k2_long, aes(x = factor(sample_id), y = proportion, fill = ancestry)) +
+  geom_col(color = "gray", linewidth = 0.1) +
+  facet_grid(~fct_inorder(pop_id), switch = "both", scales = "free", space = "free") +
+  theme_minimal() +
+  labs(x = "Individuals", title = "K=2", y = "Ancestry") +
+  scale_y_continuous(expand = c(0,0)) +
+  scale_x_discrete(expand = expansion(add = 1)) +
+  theme(panel.spacing.x = unit(0.1, "lines"),
+        axis.title.x = element_blank(),
+        axis.title.y = element_text(angle = 90, size = 15),
+        panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 0, vjust = 0.5, size = 12),
+        strip.text.x = element_text(face = "bold", size = 15),
+        strip.placement = "outside",
+        axis.text.y = element_text(size = 15),
+  ) +
+  scale_fill_manual(values = c("V1" = "#01004c", "V2" = "#ffb2b0")) +
+  guides(fill = "none")
+w_k2plot
+ggsave("wild_k2_admixture_Oct2025.png", w_k2plot, width = 15, height = 8, bg = "white")
