@@ -109,10 +109,13 @@ system("./plink --bfile LEPA_standard_final --extract LEPA_LDpruned_0.5_out.prun
 system("./plink2 --bfile LEPA_LDpruned_05 --chr-set 17 --export vcf-4.2 bgz --out LEPA_LDpruned_05")
 
 #ROH filters; no MAF, miss 90, biallelic, coverage depth
+#also may use in kinship analyses; as is recommended not to filter for MAF or LD prune
 #LEPA
 system("./plink --bfile LEPA_biallelic_dp10 --chr-set 17 --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_roh_filter")
     #309052 variants and 85 samples pass filters and QC.
-
+#subsetting into zoo and wild after the roh filters
+system("./plink --bfile LEPA_roh_filter --keep wild_subset.txt --chr-set 17 --make-bed --out Wild_roh_subset") #wild populations
+system("./plink --bfile LEPA_roh_filter --keep zoo_subset.txt --chr-set 17 --make-bed --out Zoo_roh_subset") #zoo populations
 
 ##############################################################
 ####Data Analysis
@@ -169,6 +172,7 @@ ggsave("wild_pca.png", dpi = 300)
 ####Kinship -- mostly done, needs accuracy check####
 ##king-robust kingship estimator for WILD individuals -- come back and recheck to accuracy? why all related?
 ##kin values definitely over-representing the relationships, will need to address
+#remove MAF filter? is suggested in the KING manual. Did I do that in my Thesis? check
 system("./plink2 --bfile Wild_Standard_postfilt_subset --make-king-table --allow-extra-chr --chr-set 17 --out wild_KING_manu")
 king.wild.matrix <- read.table("wild_KING_manu.kin0", header = FALSE) #make king table into object
 colnames(king.wild.matrix) <- c("#FID1", "IID1", "FID2", "IID2", "NSNP", "HETHET", "IBS0", "KINSHIP") #add column header
@@ -192,10 +196,38 @@ ggplot(data = king.wild.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
   theme_minimal()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
 
+###with no maf filter
+system("./plink2 --bfile Wild_roh_subset --make-king-table --allow-extra-chr --chr-set 17 --out wild_KING_noMAF")
+king.wild.noMAF.matrix <- read.table("wild_KING_noMAF.kin0", header = FALSE) #make king table into object
+colnames(king.wild.noMAF.matrix) <- c("#FID1", "IID1", "FID2", "IID2", "NSNP", "HETHET", "IBS0", "KINSHIP") #add column header
+#remove "-x" from the individual id's
+king.wild.noMAF.matrix <- king.wild.noMAF.matrix %>%
+  mutate(IID1 = gsub("-.*", "", IID1),
+         IID2 = gsub("-.*", "", IID2))
+#make csv from the .kin0 file
+write.csv(king.wild.noMAF.matrix, "wild_pairwise_kinship_noMAF.csv")
+
+#heat map of kinship for wild individuals -- binned
+ggplot(data = king.wild.noMAF.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
+  geom_tile(color="white") +
+  scale_fill_stepsn(name = "Kinship", breaks = c(0, 0.04, 0.1, 0.2),
+                    limit = c(0, 0.3),
+                    labels = c("Unrelated", "3rd Degree", "2nd Degree", "1st Degree"),
+                    aesthetics = "fill",
+                    space = "Lab",
+                    colors = c("grey100", "gold1", "orangered", "firebrick"))+
+  labs(x="Individuals", y="Individuals")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+      ###did reduce some of the relationships, still higher than expected
+
 
 ####Admixture -- not done####
 ##admixture plotting
+#using LD pruned dataset
 #.q files from ADMIXTURE performed on a mac computer; code as follows:
+####ROH -- not dome####
+####Diversity stats -- not done####
 
 
 
