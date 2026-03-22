@@ -5,7 +5,7 @@
 
 ####setting up####
 #setting working directories
-setwd("/Volumes/Expansion/2_TB_Working_Files") #WD if working out of the hard drive
+setwd("/Volumes/Expansion/2_TB_Working_Files/Plink_files") #WD if working out of the hard drive
 setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files") #WD if working off of the laptop
 #installing and libraring required packages
 library(ggplot2)
@@ -220,6 +220,44 @@ ggplot(data = king.wild.noMAF.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
   theme_minimal()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
       ###did reduce some of the relationships, still higher than expected
+
+####Running tests to determine differences from cat ref genome --- delete later to clean code####
+###hardy weinberg equilibrium testing
+system("./plink --bfile LEPA_standard_final --chr-set 17 --hardy --out lepa_hwe") #zoo hwe
+
+##make ternary plot
+#data wrangling to fit format for plotting
+hardy_test <- read.table("lepa_hwe.hwe", header = TRUE) #read in data from the hwe test
+genotype_counts <- do.call(rbind, strsplit(as.character(hardy_test$GENO), "/")) #split the geno column into three -- in order to plot the values
+genotype_counts <- as.data.frame(genotype_counts) #make into a data from
+colnames(genotype_counts) <- c("AA", "AB", "BB") #label columns
+genotype_counts$AA <- as.numeric(genotype_counts$AA) #make into numeric format
+genotype_counts$AB <- as.numeric(genotype_counts$AB) #make into numeric format
+genotype_counts$BB <- as.numeric(genotype_counts$BB) #make into numeric format
+head(genotype_counts)
+#plot
+HWTernaryPlot(genotype_counts, markercol = rgb(0,0,1,0.03),
+              vertexlab = c("AA", "AB", "BB")) #so many snps it takes forever
+#writing genotype table
+write.csv(genotype_counts, "genotype_counts_hwetest.csv")
+
+#checking allele frequencies
+# Check allele frequencies
+total <- genotype_counts$AA + genotype_counts$AB + genotype_counts$BB
+maf <- (2*genotype_counts$AA + genotype_counts$AB) / (2*total) #calcs mean maf
+summary(maf)
+    #   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    #0.05000 0.07051 0.11392 0.15464 0.21341 0.50000 
+#obtaining observed maf values
+system("./plink --bfile LEPA_standard_final --freq --out LEPA_allele_freq")
+allele_freq <- read.table("LEPA_allele_freq.frq", header=TRUE)
+mean(allele_freq$MAF) #0.1546369 mean MAF
+
+
+
+
+
+
 
 
 ####Admixture -- not done####
