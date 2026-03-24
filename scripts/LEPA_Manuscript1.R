@@ -307,14 +307,18 @@ setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing")
     #to get a direct numerical comparison for the number of snps I am starting with and losing through filtering
 
 #reading in vcf and filtering for bialleic and depth
-system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllChrom_AllInd")
-    #89 individuals 107697881 variants remain after filter for depth and biallelic
+system("./plink2 --vcf 24041DeY-snp_filter_dp_gq__AllChrom_.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 18 --make-bed --out SNP_AllInd_FF_dp10_test")
+    #140266891 variants loaded pre-filter
+    #89 individuals 133039214 variants remain after filter for depth and biallelic
 #subset data -- remove mountain lions and duplicates
-system("./plink --bfile SNP_AllInd_AllChrom_biallelic_uniqueID --keep pop_subset_ocelot.txt --chr-set 17 --make-bed --out LEPA_biallelic_dp10")
-    #Total genotyping rate in remaining samples is 0.694513; 107697881 variants and 85 samples pass filters and QC.
+system("./plink --bfile SNP_AllInd_FF_dp10_test  --keep pop_subset_LEPA_FF.txt --allow-extra-chr --chr-set 18 --make-bed --out LEPA_FF_biallelic_dp10_test1")
+    #Total genotyping rate in remaining samples is 0.717609; 133039214 variants and 85 samples pass filters and QC.
 #applying filters to all LEPA individuals -- maf, miss, hwe>
-system("./plink --bfile LEPA_biallelic_dp10 --chr-set 17 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_standard_final")
-    #61480 variants and 85 samples pass filters and QC
+system("./plink --bfile LEPA_FF_biallelic_dp10_test1 --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_FF_maf_miss_hwe_dp10_biallelic_test1")
+    #127815674 variants removed due to missing genotype data (--geno).
+    #4053183 variants removed due to minor allele threshold(s)
+    #176161 variants removed due to Hardy-Weinberg exact test.
+    #994196 variants and 85 samples pass filters and QC.
 
 ##SECOND TEST, run new data at different depth filters
     #all the same filters as my current filtering steps afterward
@@ -323,36 +327,51 @@ system("./plink --bfile LEPA_biallelic_dp10 --chr-set 17 --keep-allele-order --m
 
 #depth of 3
 #reading in vcf and filtering for bialleic and depth
-system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllChrom_AllInd")
+system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 3 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllInd_LP_dp3_test2")
+    #120040661 variants loaded pre-filter
     #89 individuals 107697881 variants remain after filter for depth and biallelic
 #subset data -- remove mountain lions and duplicates
-system("./plink --bfile SNP_AllInd_AllChrom_biallelic_uniqueID --keep pop_subset_ocelot.txt --chr-set 17 --make-bed --out LEPA_biallelic_dp10")
-    #Total genotyping rate in remaining samples is 0.694513; 107697881 variants and 85 samples pass filters and QC.
+system("./plink --bfile SNP_AllInd_LP_dp3_test2 --keep pop_subset_ocelot.txt --allow-extra-chr --chr-set 17 --make-bed --out LEPA_biallelic_dp3_test2")
+    #Total genotyping rate in remaining samples is 0.988606; 
+    #107697881 variants and 85 samples pass filters and QC.
 #applying filters to all LEPA individuals -- maf, miss, hwe>
-system("./plink --bfile LEPA_biallelic_dp10 --chr-set 17 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_standard_final")
-    #61480 variants and 85 samples pass filters and QC
+system("./plink --bfile LEPA_biallelic_dp3_test2 --chr-set 17 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_LP_maf_miss_hwe_biallelic_dp3_test2")
+    #2285966 variants removed due to missing genotype data (--geno).
+    #81803050 variants removed due to minor allele threshold(s)
+    #2413422 variants removed due to Hardy-Weinberg exact test.
+    #21195443 variants and 85 samples pass filters and QC.
 
 #depth of 7
 #reading in vcf and filtering for bialleic and depth
-system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllChrom_AllInd")
+system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 7 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllInd_LP_dp7_test2")
+    #120040661 variants loaded pre-filter
     #89 individuals 107697881 variants remain after filter for depth and biallelic
 #subset data -- remove mountain lions and duplicates
-system("./plink --bfile SNP_AllInd_AllChrom_biallelic_uniqueID --keep pop_subset_ocelot.txt --chr-set 17 --make-bed --out LEPA_biallelic_dp10")
-    #Total genotyping rate in remaining samples is 0.694513; 107697881 variants and 85 samples pass filters and QC.
+system("./plink --bfile SNP_AllInd_LP_dp7_test2 --keep pop_subset_ocelot.txt --allow-extra-chr --chr-set 17 --make-bed --out LEPA_LP_biallelic_dp7_test2")
+    #Total genotyping rate in remaining samples is 0.893491; 
+    #107697881 variants and 85 samples pass filters and QC.
 #applying filters to all LEPA individuals -- maf, miss, hwe>
-system("./plink --bfile LEPA_biallelic_dp10 --chr-set 17 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_standard_final")
-    #61480 variants and 85 samples pass filters and QC
+system("./plink --bfile LEPA_LP_biallelic_dp7_test2 --chr-set 17 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_LP_maf_miss_hwe_biallelic_dp7_test2")
+    #41056943 variants removed due to missing genotype data (--geno).
+    #51440312 variants removed due to minor allele threshold(s)
+    #1350465 variants removed due to Hardy-Weinberg exact test.
+    #13850161 variants and 85 samples pass filters and QC.
 
 #depth of 10
 #reading in vcf and filtering for bialleic and depth
-system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllChrom_AllInd")
+system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllInd_LP_dp10_test2")
+    #120040661 variants loaded pre-filter
     #89 individuals 107697881 variants remain after filter for depth and biallelic
 #subset data -- remove mountain lions and duplicates
-system("./plink --bfile SNP_AllInd_AllChrom_biallelic_uniqueID --keep pop_subset_ocelot.txt --chr-set 17 --make-bed --out LEPA_biallelic_dp10")
-    #Total genotyping rate in remaining samples is 0.694513; 107697881 variants and 85 samples pass filters and QC.
+system("./plink --bfile SNP_AllInd_LP_dp10_test2 --keep pop_subset_ocelot.txt --allow-extra-chr --chr-set 17 --make-bed --out LEPA_LP_biallelic_dp10_test2")
+    #Total genotyping rate in remaining samples is 0.694513; 
+    #107697881 variants and 85 samples pass filters and QC.
 #applying filters to all LEPA individuals -- maf, miss, hwe>
-system("./plink --bfile LEPA_biallelic_dp10 --chr-set 17 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_standard_final")
-    #61480 variants and 85 samples pass filters and QC
+system("./plink --bfile LEPA_LP_biallelic_dp10_test2 --chr-set 17 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_LP_maf_miss_hwe_biallelic_dp10_test2")
+    #107381080 variants removed due to missing genotype data (--geno).
+    #247572 variants removed due to minor allele threshold(s)
+    #7749 variants removed due to Hardy-Weinberg exact test.
+    #61480 variants and 85 samples pass filters and QC.
 
 
 ###THIRD TEST, subset wild samples first, then run through the filtering
