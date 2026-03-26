@@ -265,7 +265,9 @@ ggsave("wild_k2_admixture_Oct2025.png", w_k2plot, width = 15, height = 8, bg = "
 ####Diversity stats -- not done####
 
 ####Running tests to determine differences from cat ref genome --- delete later to clean code####
-###hardy weinberg equilibrium testing
+###hardy weinberg equilibrium testing and MAF frequencies
+
+##LP reference genome
 system("./plink --bfile LEPA_standard_final --chr-set 17 --hardy --out lepa_hwe") #zoo hwe
 ##make ternary plot
 #data wrangling to fit format for plotting
@@ -282,7 +284,6 @@ HWTernaryPlot(genotype_counts, markercol = rgb(0,0,1,0.03),
               vertexlab = c("AA", "AB", "BB")) #so many snps it takes forever
 #writing genotype table
 write.csv(genotype_counts, "genotype_counts_hwetest.csv")
-
 ###checking allele frequencies
 # Check allele frequencies
 total <- genotype_counts$AA + genotype_counts$AB + genotype_counts$BB
@@ -295,6 +296,30 @@ system("./plink --bfile LEPA_standard_final --freq --out LEPA_allele_freq")
 allele_freq <- read.table("LEPA_allele_freq.frq", header=TRUE)
 mean(allele_freq$MAF) #0.1546369 mean MAF
 
+##FF reference genome
+system("./plink --bfile LEPA_FF_maf_miss_hwe_dp10_biallelic_test1 --chr-set 18 --allow-extra-chr --hardy --out lepa_FF_hwe") 
+##make ternary plot
+#data wrangling to fit format for plotting
+hardy_test <- read.table("lepa_FF_hwe.hwe", header = TRUE) #read in data from the hwe test
+genotype_counts <- do.call(rbind, strsplit(as.character(hardy_test$GENO), "/")) #split the geno column into three -- in order to plot the values
+genotype_counts <- as.data.frame(genotype_counts) #make into a data from
+colnames(genotype_counts) <- c("AA", "AB", "BB") #label columns
+genotype_counts$AA <- as.numeric(genotype_counts$AA) #make into numeric format
+genotype_counts$AB <- as.numeric(genotype_counts$AB) #make into numeric format
+genotype_counts$BB <- as.numeric(genotype_counts$BB) #make into numeric format
+head(genotype_counts)
+#plot
+HWTernaryPlot(genotype_counts, markercol = rgb(0,0,1,0.03),
+              vertexlab = c("AA", "AB", "BB")) #plot not wanting to work for the old FF alignment
+#writing genotype table
+write.csv(genotype_counts, "genotype_counts_hwetest.csv")
+###checking allele frequencies
+# Check allele frequencies
+total <- genotype_counts$AA + genotype_counts$AB + genotype_counts$BB
+maf <- (2*genotype_counts$AA + genotype_counts$AB) / (2*total) #calcs mean maf
+summary(maf)
+    #    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+    #0.05000 0.07229 0.12353 0.16385 0.22892 0.50000 
 
 ###testing filter setting on both old data and new 
   #create logs to compare the number of snps removed
