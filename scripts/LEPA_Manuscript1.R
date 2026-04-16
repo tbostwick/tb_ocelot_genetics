@@ -51,6 +51,13 @@ library(dplyr)
   #/Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/joint_call.LAO03M.20251202.vcf.gz \
   #-O z -o /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/joint_call_autosomes.vcf.gz
 
+#removing indels from the vcf files in bcftools
+  #./bcftools norm -m -any \ /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/joint_call_autosomes.vcf.gz \ | ./bcftools view -v snps -m2 -M2 \
+  #-O z -o /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/allInd_SNPs_autosomes.vcf.gz
+          #this code first normalizes the data set, separating the individual alleles. This allows the code to then remove indels (as some indels can be an alt allele to a snp),
+          #then it removes any sites that have only 1 allele, and any that the have more than two -- essentially the biallelic filter
+          #in total, this allows the indel filter to catch all instances of indels, then remove uninformative sites and multiallelic sites leaving only biallelic snps
+
 ####creating plink files from the joint_call VCF file####
 system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllChrom_AllInd")
       #89 individuals 107697881 variants remain after filter for depth and biallelic
@@ -399,8 +406,23 @@ system("./plink --bfile LEPA_LP_biallelic_dp10_test2 --chr-set 17 --allow-extra-
     #61480 variants and 85 samples pass filters and QC.
 
 
-###THIRD TEST, subset wild samples first, then run through the filtering
-    #to emulate how the data would be treated for the first chapter
-    #theory being filtering together is messing with the MAF, and removing potentially informative snps from the wild
+###THIRD TEST, read in without depth filter, find mean depth and filter around the mean
 
-
+#getting distribution of coverage depths in bcftools:
+  #cd /Users/tylerbostwick/bcftools #setting working directory for bcftools
+  # ./bcftools stats /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/joint_call_autosomes.vcf.gz | grep "^SN"
+        #gives summary stats on the vcf file
+        #output:
+        #SN	0	number of samples:	89
+        #SN	0	number of records:	120040661 -- total number of sites
+        #SN	0	number of no-ALTs:	0 -- rows with no alt allele, essentially uninformative rows
+        #SN	0	number of SNPs:	101914847 -- total number of snps
+        #SN	0	number of MNPs:	0 -- total of multi-nucleotide polys
+        #SN	0	number of indels:	20246516 -- total number of indels (need to remove)
+        #SN	0	number of others:	0 -- anything else
+        #SN	0	number of multiallelic sites:	12342780 -- sites with more than two alleles
+        #SN	0	number of multiallelic SNP sites:	1673221 -- number of multiallelic sites that are snps
+#after removing all indels and biallelic sites -- total snps left is 103792041
+#computing mean coverage depth across sites, code queries the vcf for the depth at each site, the performs a pipe that calculates mean
+#./bcftools query -f '[%DP\n]' /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/allInd_SNPs_autosomes.vcf.gz | \ awk '{sum+=$1; n++} END {print "Mean per-individual depth:", sum/n}'
+      #output: Mean per-individual depth: 12.0631
