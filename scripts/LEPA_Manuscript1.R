@@ -1,7 +1,20 @@
-#03/15/26
+#04/22/26
 #data processing and analyses for Manuscript 1: wild ocelot genomics
 #data aligned to the new ocelot genome
 #vcf from the lab had minimal filtering, only basic quality control, and no imputation
+
+###~~~ Filtering steps~~~
+#First in BCFTools:
+    #select only autosomes
+    #remove indels and non biallelic snps
+    #filter for a genotype quality score above 9
+#next, in plink for processesing ease:
+    #rename chromosomes
+    #give snps unique id's
+    #for manuscript 1 -- subset just the wild
+#then, filtering in plink for each analysis
+    #depth of 7
+    #generally, maf, miss, and hwe filters applied here
 
 ####setting up####
 #setting working directories
@@ -41,6 +54,8 @@ library(dplyr)
 #to get plink to run on the mac, needed to delete the mac quarantine by using the following code in terminal:
     #xattr -d com.apple.quarantine ~/Documents/Masters_Work/Analyses/PLINK_Files/plink2_mac_20260228/plink2
 
+
+################################################################################
 ####data pre processing in bcftools in terminal####
 #setting working directory to use bcftools
   #cd /Users/tylerbostwick/bcftools
@@ -51,12 +66,15 @@ library(dplyr)
   #/Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/joint_call.LAO03M.20251202.vcf.gz \
   #-O z -o /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/joint_call_autosomes.vcf.gz
 
-#removing indels from the vcf files in bcftools
+#removing indels and non biallelic snps from the vcf files in bcftools
   #./bcftools norm -m -any \ /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/joint_call_autosomes.vcf.gz \ | ./bcftools view -v snps -m2 -M2 \
   #-O z -o /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/allInd_SNPs_autosomes.vcf.gz
           #this code first normalizes the data set, separating the individual alleles. This allows the code to then remove indels (as some indels can be an alt allele to a snp),
           #then it removes any sites that have only 1 allele, and any that the have more than two -- essentially the biallelic filter
           #in total, this allows the indel filter to catch all instances of indels, then remove uninformative sites and multiallelic sites leaving only biallelic snps
+
+#filtering for genotype quality scores in bcftools -- score of 9 used as min
+
 
 ####creating plink files from the joint_call VCF file####
 system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllChrom_AllInd")
@@ -406,7 +424,7 @@ system("./plink --bfile LEPA_LP_biallelic_dp10_test2 --chr-set 17 --allow-extra-
     #61480 variants and 85 samples pass filters and QC.
 
 
-###THIRD TEST, read in without depth filter, find mean depth and filter around the mean
+###THIRD iteration, running diagnostics in bcftools
 
 #getting distribution of coverage depths in bcftools:
   #cd /Users/tylerbostwick/bcftools #setting working directory for bcftools
@@ -426,3 +444,15 @@ system("./plink --bfile LEPA_LP_biallelic_dp10_test2 --chr-set 17 --allow-extra-
 #computing mean coverage depth across sites, code queries the vcf for the depth at each site, the performs a pipe that calculates mean
 #./bcftools query -f '[%DP\n]' /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/allInd_SNPs_autosomes.vcf.gz | \ awk '{sum+=$1; n++} END {print "Mean per-individual depth:", sum/n}'
       #output: Mean per-individual depth: 12.0631
+#computing mean and standard deviation bounds for use in determining the depth filter:
+#./bcftools query -f '[%DP\n]' /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/allInd_SNPs_autosomes.vcf.gz | \ awk '$1 > 0 {sum+=$1; sumsq+=$1*$1; n++} END {mean=sum/n; sd=sqrt(sumsq/n - mean^2); print "Mean:", mean; print "SD:", sd; print "Mean - 2SD:", mean-2*sd; print "Mean + 2SD:", mean+2*sd}'
+      #output: Mean: 12.1187
+              #SD: 5.08218
+              #Mean - 2SD: 1.95431
+              #Mean + 2SD: 22.2831
+
+
+
+
+
+
