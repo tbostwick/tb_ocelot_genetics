@@ -145,7 +145,7 @@ system("./plink --bfile SNP_wild_dp7_gq9_bi --chr-set 17 --keep-allele-order --g
 ####PCA Analysis -- Done!####
 ##PCA on Wild individuals --- done!
 #reading in data
-system("./plink --bfile Wild_Standard_postfilt_subset --pca --chr-set 17 --out pca_wild") #run the pca code, specified the number of chromosomes
+system("./plink --bfile wild_standard_final --pca --chr-set 17 --out pca_wild") #run the pca code, specified the number of chromosomes
 pca.data.wild <- read.table("pca_wild.eigenvec", header=FALSE) #load pca results from the eigenvec file
 colnames(pca.data.wild)[2] <- "ID" #rename second column to allow for appending pop assignment later
 eigenvalues <- read.table("pca_wild.eigenval", header=FALSE)$V1 #read in eigenvalues to calc variance
@@ -174,7 +174,7 @@ wild_pca <- ggplot(pca.data.wild.origins, aes(x=V3,y=V4)) +  #plot with individu
   geom_text(data = subset(pca.data.wild.origins, ID %in% c("LO01F")), #in correct position
             aes(label=ID), vjust=-1, hjust=0.02, size=4, color = "black") + 
   geom_text(data = subset(pca.data.wild.origins, ID %in% c("E29M")), #in correct position
-            aes(label=ID), vjust=-0.5, hjust=-0.2, size=4, color = "black") + 
+            aes(label=ID), vjust=1.5, hjust=-0.1, size=4, color = "black") + 
   geom_text(data = subset(pca.data.wild.origins, ID %in% c("E32M")),  #in correct position
             aes(label=ID), vjust=-0.4, hjust=-0.2, size=4, color = "black") + 
   scale_color_manual(name = "Origin", values = c("Refuge" = "#01004c", "Ranch" = "orchid")) +
@@ -193,10 +193,8 @@ wild_pca
 ggsave("wild_pca.png", dpi = 300)
 
 ####Kinship -- mostly done, needs accuracy check####
-##king-robust kingship estimator for WILD individuals -- come back and recheck to accuracy? why all related?
-##kin values definitely over-representing the relationships, will need to address
-#remove MAF filter? is suggested in the KING manual. Did I do that in my Thesis? check
-system("./plink2 --bfile Wild_Standard_postfilt_subset --make-king-table --allow-extra-chr --chr-set 17 --out wild_KING_manu")
+##king-robust kingship estimator for WILD individuals 
+system("./plink2 --bfile wild_kin_roh_filter --make-king-table --allow-extra-chr --chr-set 17 --out wild_KING_manu")
 king.wild.matrix <- read.table("wild_KING_manu.kin0", header = FALSE) #make king table into object
 colnames(king.wild.matrix) <- c("#FID1", "IID1", "FID2", "IID2", "NSNP", "HETHET", "IBS0", "KINSHIP") #add column header
 #remove "-x" from the individual id's
@@ -218,31 +216,6 @@ ggplot(data = king.wild.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
   labs(x="Individuals", y="Individuals")+
   theme_minimal()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-
-###with no maf filter
-system("./plink2 --bfile Wild_roh_subset --make-king-table --allow-extra-chr --chr-set 17 --out wild_KING_noMAF")
-king.wild.noMAF.matrix <- read.table("wild_KING_noMAF.kin0", header = FALSE) #make king table into object
-colnames(king.wild.noMAF.matrix) <- c("#FID1", "IID1", "FID2", "IID2", "NSNP", "HETHET", "IBS0", "KINSHIP") #add column header
-#remove "-x" from the individual id's
-king.wild.noMAF.matrix <- king.wild.noMAF.matrix %>%
-  mutate(IID1 = gsub("-.*", "", IID1),
-         IID2 = gsub("-.*", "", IID2))
-#make csv from the .kin0 file
-write.csv(king.wild.noMAF.matrix, "wild_pairwise_kinship_noMAF.csv")
-
-#heat map of kinship for wild individuals -- binned
-ggplot(data = king.wild.noMAF.matrix, aes(x=IID1, y=IID2, fill = KINSHIP)) +
-  geom_tile(color="white") +
-  scale_fill_stepsn(name = "Kinship", breaks = c(0, 0.04, 0.1, 0.2),
-                    limit = c(0, 0.3),
-                    labels = c("Unrelated", "3rd Degree", "2nd Degree", "1st Degree"),
-                    aesthetics = "fill",
-                    space = "Lab",
-                    colors = c("grey100", "gold1", "orangered", "firebrick"))+
-  labs(x="Individuals", y="Individuals")+
-  theme_minimal()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
-      ###did reduce some of the relationships, still higher than expected
 
 ####Admixture -- not done####
 ##admixture plotting
@@ -286,141 +259,8 @@ ggsave("wild_k2_admixture_Oct2025.png", w_k2plot, width = 15, height = 8, bg = "
 ####ROH -- not dome####
 ####Diversity stats -- not done####
 
-####Running tests to determine differences from cat ref genome --- delete later to clean code####
-###hardy weinberg equilibrium testing and MAF frequencies
 
-##LP reference genome
-system("./plink --bfile LEPA_standard_final --chr-set 17 --hardy --out lepa_hwe") #zoo hwe
-##make ternary plot
-#data wrangling to fit format for plotting
-hardy_test <- read.table("lepa_hwe.hwe", header = TRUE) #read in data from the hwe test
-genotype_counts <- do.call(rbind, strsplit(as.character(hardy_test$GENO), "/")) #split the geno column into three -- in order to plot the values
-genotype_counts <- as.data.frame(genotype_counts) #make into a data from
-colnames(genotype_counts) <- c("AA", "AB", "BB") #label columns
-genotype_counts$AA <- as.numeric(genotype_counts$AA) #make into numeric format
-genotype_counts$AB <- as.numeric(genotype_counts$AB) #make into numeric format
-genotype_counts$BB <- as.numeric(genotype_counts$BB) #make into numeric format
-head(genotype_counts)
-#plot
-HWTernaryPlot(genotype_counts, markercol = rgb(0,0,1,0.03),
-              vertexlab = c("AA", "AB", "BB")) #so many snps it takes forever
-#writing genotype table
-write.csv(genotype_counts, "genotype_counts_hwetest.csv")
-###checking allele frequencies
-# Check allele frequencies
-total <- genotype_counts$AA + genotype_counts$AB + genotype_counts$BB
-maf <- (2*genotype_counts$AA + genotype_counts$AB) / (2*total) #calcs mean maf
-summary(maf)
-#   Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#0.05000 0.07051 0.11392 0.15464 0.21341 0.50000 
-#obtaining observed maf values
-system("./plink --bfile LEPA_standard_final --freq --out LEPA_allele_freq")
-allele_freq <- read.table("LEPA_allele_freq.frq", header=TRUE)
-mean(allele_freq$MAF) #0.1546369 mean MAF
-
-##FF reference genome
-system("./plink --bfile LEPA_FF_maf_miss_hwe_dp10_biallelic_test1 --chr-set 18 --allow-extra-chr --hardy --out lepa_FF_hwe") 
-##make ternary plot
-#data wrangling to fit format for plotting
-hardy_test <- read.table("lepa_FF_hwe.hwe", header = TRUE) #read in data from the hwe test
-genotype_counts <- do.call(rbind, strsplit(as.character(hardy_test$GENO), "/")) #split the geno column into three -- in order to plot the values
-genotype_counts <- as.data.frame(genotype_counts) #make into a data from
-colnames(genotype_counts) <- c("AA", "AB", "BB") #label columns
-genotype_counts$AA <- as.numeric(genotype_counts$AA) #make into numeric format
-genotype_counts$AB <- as.numeric(genotype_counts$AB) #make into numeric format
-genotype_counts$BB <- as.numeric(genotype_counts$BB) #make into numeric format
-head(genotype_counts)
-#plot
-HWTernaryPlot(genotype_counts, markercol = rgb(0,0,1,0.03),
-              vertexlab = c("AA", "AB", "BB")) #plot not wanting to work for the old FF alignment
-#writing genotype table
-write.csv(genotype_counts, "genotype_counts_hwetest.csv")
-###checking allele frequencies
-# Check allele frequencies
-total <- genotype_counts$AA + genotype_counts$AB + genotype_counts$BB
-maf <- (2*genotype_counts$AA + genotype_counts$AB) / (2*total) #calcs mean maf
-summary(maf)
-    #    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-    #0.05000 0.07229 0.12353 0.16385 0.22892 0.50000 
-
-###testing filter setting on both old data and new 
-  #create logs to compare the number of snps removed
-  #trying to isolate where snps are being lost, and comparing to the same setting used on
-  #the data set with the domestic cat genome
-setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing") #WD for filter testing to keep logs organized, remove actual files later to preserve storage
-
-##FIRST TEST, rerun old data without mountain lions and duplicates
-    #All the same filters as my current filtering steps
-    #to get a direct numerical comparison for the number of snps I am starting with and losing through filtering
-
-#reading in vcf and filtering for bialleic and depth
-system("./plink2 --vcf 24041DeY-snp_filter_dp_gq__AllChrom_.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 18 --make-bed --out SNP_AllInd_FF_dp10_test")
-    #140266891 variants loaded pre-filter
-    #89 individuals 133039214 variants remain after filter for depth and biallelic
-#subset data -- remove mountain lions and duplicates
-system("./plink --bfile SNP_AllInd_FF_dp10_test  --keep pop_subset_LEPA_FF.txt --allow-extra-chr --chr-set 18 --make-bed --out LEPA_FF_biallelic_dp10_test1")
-    #Total genotyping rate in remaining samples is 0.717609; 133039214 variants and 85 samples pass filters and QC.
-#applying filters to all LEPA individuals -- maf, miss, hwe>
-system("./plink --bfile LEPA_FF_biallelic_dp10_test1 --chr-set 18 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_FF_maf_miss_hwe_dp10_biallelic_test1")
-    #127815674 variants removed due to missing genotype data (--geno).
-    #4053183 variants removed due to minor allele threshold(s)
-    #176161 variants removed due to Hardy-Weinberg exact test.
-    #994196 variants and 85 samples pass filters and QC.
-
-##SECOND TEST, run new data at different depth filters
-    #all the same filters as my current filtering steps afterward
-    #to, first, compare the base 3 depth that I used in my thesis
-    #then second, to compare many snps are removed for all of the different depth filters
-
-#depth of 3
-#reading in vcf and filtering for bialleic and depth
-system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 3 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllInd_LP_dp3_test2")
-    #120040661 variants loaded pre-filter
-    #89 individuals 107697881 variants remain after filter for depth and biallelic
-#subset data -- remove mountain lions and duplicates
-system("./plink --bfile SNP_AllInd_LP_dp3_test2 --keep pop_subset_ocelot.txt --allow-extra-chr --chr-set 17 --make-bed --out LEPA_biallelic_dp3_test2")
-    #Total genotyping rate in remaining samples is 0.988606; 
-    #107697881 variants and 85 samples pass filters and QC.
-#applying filters to all LEPA individuals -- maf, miss, hwe>
-system("./plink --bfile LEPA_biallelic_dp3_test2 --chr-set 17 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_LP_maf_miss_hwe_biallelic_dp3_test2")
-    #2285966 variants removed due to missing genotype data (--geno).
-    #81803050 variants removed due to minor allele threshold(s)
-    #2413422 variants removed due to Hardy-Weinberg exact test.
-    #21195443 variants and 85 samples pass filters and QC.
-
-#depth of 7
-#reading in vcf and filtering for bialleic and depth
-system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 7 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllInd_LP_dp7_test2")
-    #120040661 variants loaded pre-filter
-    #89 individuals 107697881 variants remain after filter for depth and biallelic
-#subset data -- remove mountain lions and duplicates
-system("./plink --bfile SNP_AllInd_LP_dp7_test2 --keep pop_subset_ocelot.txt --allow-extra-chr --chr-set 17 --make-bed --out LEPA_LP_biallelic_dp7_test2")
-    #Total genotyping rate in remaining samples is 0.893491; 
-    #107697881 variants and 85 samples pass filters and QC.
-#applying filters to all LEPA individuals -- maf, miss, hwe>
-system("./plink --bfile LEPA_LP_biallelic_dp7_test2 --chr-set 17 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_LP_maf_miss_hwe_biallelic_dp7_test2")
-    #41056943 variants removed due to missing genotype data (--geno).
-    #51440312 variants removed due to minor allele threshold(s)
-    #1350465 variants removed due to Hardy-Weinberg exact test.
-    #13850161 variants and 85 samples pass filters and QC.
-
-#depth of 10
-#reading in vcf and filtering for bialleic and depth
-system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllInd_LP_dp10_test2")
-    #120040661 variants loaded pre-filter
-    #89 individuals 107697881 variants remain after filter for depth and biallelic
-#subset data -- remove mountain lions and duplicates
-system("./plink --bfile SNP_AllInd_LP_dp10_test2 --keep pop_subset_ocelot.txt --allow-extra-chr --chr-set 17 --make-bed --out LEPA_LP_biallelic_dp10_test2")
-    #Total genotyping rate in remaining samples is 0.694513; 
-    #107697881 variants and 85 samples pass filters and QC.
-#applying filters to all LEPA individuals -- maf, miss, hwe>
-system("./plink --bfile LEPA_LP_biallelic_dp10_test2 --chr-set 17 --allow-extra-chr --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_LP_maf_miss_hwe_biallelic_dp10_test2")
-    #107381080 variants removed due to missing genotype data (--geno).
-    #247572 variants removed due to minor allele threshold(s)
-    #7749 variants removed due to Hardy-Weinberg exact test.
-    #61480 variants and 85 samples pass filters and QC.
-
-
+####coverage stats from bcftools - can delete later to clean####
 ###THIRD iteration, running diagnostics in bcftools
 
 #getting distribution of coverage depths in bcftools:
