@@ -74,15 +74,16 @@ library(dplyr)
           #in total, this allows the indel filter to catch all instances of indels, then remove uninformative sites and multiallelic sites leaving only biallelic snps
 
 #filtering for genotype quality scores in bcftools -- score of 9 used as min
+#./bcftools filter -e 'FMT/GQ < 9' \ /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/Filter_testing/allInd_SNPs_autosomes.vcf.gz \ -O z -o allInd_SNPs_autosomes_bi_gq9.vcf.gz
+      #code tells bcftools to exclude (-e) and snps that have a genotype score or less than 9, then reads in the file, and outputs the new filtered file
 
+####creating plink files from the base file created from BCFtools####
+system("./plink2 --vcf allInd_SNPs_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 7 --vcf-max-dp 22 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllChrom_AllInd_dp7_gq9_bi")
+      #89 individuals 103792041 variants remain after filter for depth and biallelic
 
-####creating plink files from the joint_call VCF file####
-system("./plink2 --vcf joint_call_autosomes.vcf.gz --keep-allele-order --allow-extra-chr --vcf-min-dp 10 --max-alleles 2 --chr-set 17 --make-bed --out SNP_AllChrom_AllInd")
-      #89 individuals 107697881 variants remain after filter for depth and biallelic
-
-####creating base unfiltered plink files####
-#renaming chromosomes to a standard number based, which is what plink is expecting
-bim <- read.table("SNP_AllChrom_AllInd.bim", stringsAsFactors = FALSE)
+####creating base plink files pre-standard filtering####
+##renaming chromosomes to a standard number based, which is what plink is expecting
+bim <- read.table("SNP_AllChrom_AllInd_dp7_gq9_bi.bim", stringsAsFactors = FALSE)
 colnames(bim) <- c("chr", "snp", "cm", "pos", "a1", "a2")
 #get the unique chr names
 unique_chrs <- unique(bim$chr)
@@ -101,47 +102,43 @@ for (i in 1:nrow(chr_map)) {
 write.table(bim, "SNP_AllInd_unfilt_chrfix.bim", quote = FALSE, sep = "\t", 
             row.names = FALSE, col.names = FALSE)
 #have plink write new bim bam bed files with the new bim file we created
-system("./plink --bed SNP_AllChrom_AllInd.bed --bim SNP_AllInd_unfilt_chrfix.bim --fam SNP_AllChrom_AllInd.fam --make-bed --out SNP_AllInd_AllChrom_biallelic_chrfix")
+system("./plink --bed SNP_AllChrom_AllInd_dp7_gq9_bi.bed --bim SNP_AllInd_unfilt_chrfix.bim --fam SNP_AllChrom_AllInd_dp7_gq9_bi.fam --make-bed --out SNP_AllChrom_AllInd_dp7_gq9_bi_chrfix")
 
 ###give snp ids -- labels every snps with a unique code
-system("./plink2 --bfile SNP_AllInd_AllChrom_biallelic_chrfix --chr-set 17 --set-all-var-ids @_# --new-id-max-allele-len 20 --make-bed --out SNP_AllInd_AllChrom_biallelic_uniqueID")
+system("./plink2 --bfile SNP_AllChrom_AllInd_dp7_gq9_bi_chrfix --chr-set 17 --set-all-var-ids @_# --new-id-max-allele-len 20 --make-bed --out SNP_AllChrom_AllInd_dp7_gq9_bi_chrfix_uniqueID")
 
-###subset data -- remove mountain lion; all populations and origins get filtered together
-system("./plink --bfile SNP_AllInd_AllChrom_biallelic_uniqueID --keep pop_subset_ocelot.txt --chr-set 17 --make-bed --out LEPA_biallelic_dp10")
-    #Total genotyping rate in remaining samples is 0.694513; 107697881 variants and 85 samples pass filters and QC.
-    #at this point, the only filters applied are coverage depth and biallelic
+###subset data -- remove mountain lion and duplicates, for manuscript 1 keeping only wild populations
+system("./plink --bfile SNP_AllChrom_AllInd_dp7_gq9_bi_chrfix_uniqueID --keep wild_subset.txt --chr-set 17 --make-bed --out SNP_wild_dp7_gq9_bi")
+    #Total genotyping rate in remaining samples is 0.861001; 103792041 variants and 44 samples pass filters and QC.
+    #at this point, coverage depth of 7, genotype quality of 9, and biallelic filters applied to create base file
 
-####SNP filtering to create standard data set for all LEPA####
+####SNP filtering to create standard data set for all wild LEPA####
 #apply filters -- maf, miss, hwe> base, other adjustments can follow
-###LEPA
-system("./plink --bfile LEPA_biallelic_dp10 --chr-set 17 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_standard_final")
-      #61480 variants and 85 samples pass filters and QC
+###Wild
+system("./plink --bfile SNP_wild_dp7_gq9_bi --chr-set 17 --keep-allele-order --maf 0.05 --geno 0.1 --hwe 1e-6 --make-bed --out wild_standard_final")
+      #66269934 variants removed due to missing genotype data (--geno)
+      #3576 variants removed due to Hardy-Weinberg exact test
+      #33435588 variants removed due to minor allele threshold(s)
+      #4082943 variants and 44 samples pass filters and QC.
 
-####Export full lepa standard vcf
-system("./plink2 --bfile LEPA_standard_final --chr-set 17 --export vcf-4.2 bgz --out LEPA_standard_final")
-
-####Subsetting the groups from the whole LEPA standard final after filtering together####
-system("./plink --bfile LEPA_standard_final --keep wild_subset.txt --chr-set 17 --make-bed --out Wild_Standard_postfilt_subset") #wild populations
-system("./plink --bfile LEPA_standard_final --keep zoo_subset.txt --chr-set 17 --make-bed --out Zoo_Standard_postfilt_subset") #zoo populations
+####Export full wild standard vcf
+system("./plink2 --bfile wild_standard_final --chr-set 17 --export vcf-4.2 bgz --out wild_standard_final")
 
 ####additional filtering for select analyses####
 #LD pruning
-#LEPA
-system("./plink --bfile LEPA_standard_final --chr-set 17 --keep-allele-order --indep 50 5 2 --out LEPA_LDpruned_0.5_out") #makes an out and in files of SNps to keep and SNPs to remove
+system("./plink --bfile wild_standard_final --chr-set 17 --keep-allele-order --indep-pairwise 50 5 0.5 --out wild_LDpruned_0.5_out") #makes an out and in files of SNps to keep and SNPs to remove
       #change to indep-pairwise instead of indep
-system("./plink --bfile LEPA_standard_final --extract LEPA_LDpruned_0.5_out.prune.in --chr-set 17 --make-bed --out LEPA_LDpruned_05") #extract SNPs and create new files
-    #Total genotyping rate is 0.925572; 13965 variants and 85 samples pass filters and QC.
+system("./plink --bfile wild_standard_final --extract wild_LDpruned_0.5_out.prune.in --chr-set 17 --make-bed --out wild_LDpruned_05") #extract SNPs and create new files
+    #Total genotyping rate is 0.925318; 273852 variants and 44 samples pass filters and QC..
 #write vcf
-system("./plink2 --bfile LEPA_LDpruned_05 --chr-set 17 --export vcf-4.2 bgz --out LEPA_LDpruned_05")
+system("./plink2 --bfile wild_LDpruned_05 --chr-set 17 --export vcf-4.2 bgz --out wild_LDpruned_05")
 
-#ROH filters; no MAF, miss 90, biallelic, coverage depth
-#also may use in kinship analyses; as is recommended not to filter for MAF or LD prune
-#LEPA
-system("./plink --bfile LEPA_biallelic_dp10 --chr-set 17 --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out LEPA_roh_filter")
-    #309052 variants and 85 samples pass filters and QC.
-#subsetting into zoo and wild after the roh filters
-system("./plink --bfile LEPA_roh_filter --keep wild_subset.txt --chr-set 17 --make-bed --out Wild_roh_subset") #wild populations
-system("./plink --bfile LEPA_roh_filter --keep zoo_subset.txt --chr-set 17 --make-bed --out Zoo_roh_subset") #zoo populations
+
+#ROH and kinship filters; no MAF, miss 90, biallelic, coverage depth 7, genotype quality 9
+#also used in kinship analyses; as is recommended not to filter for MAF or LD prune
+system("./plink --bfile SNP_wild_dp7_gq9_bi --chr-set 17 --keep-allele-order --geno 0.1 --hwe 1e-6 --make-bed --out wild_kin_roh_filter")
+    #37518531 variants and 44 samples pass filters and QC.
+
 
 ##############################################################
 ####Data Analysis
