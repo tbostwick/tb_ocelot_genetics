@@ -278,43 +278,39 @@ setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selecti
 ##experirmental -- used bcftools to select roh, uses a HMM to select runs
 #code run in termainl is as follows:
 
-#bcftools roh -G30 --AF-dflt 0.5 --rec-rate 1.1 -Or -o roh.txt /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/wild_kin_roh_filter.vcf.gz
-      #this uses a default allele frequency of 0.5, geno quality of 30, and the domestic cat recombination rate of 1.1 cm/Mb
+#clean the header of the vcf for use in bcftools- removes a flag placed by plink that causes errors
+#./bcftools view -h /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/roh_LDpruned_05.vcf.gz | grep -v "##chrSet" > clean_header.txt
+#./bcftools reheader -h clean_header.txt /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/roh_LDpruned_05.vcf.gz -o /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/clean_roh_LDpruned_05.vcf.gz
 
+#identify roh:
+#./bcftools roh -G30 --estimate-AF - --rec-rate 1.1 -Or -o roh_LD05.txt \ /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/clean_roh_LDpruned_05.vcf.gz
+    #key changes, now estimates allele frequencies from data instead of using default, uses the domestic cat recombination rate
+    #and is using LD pruned data to better fit model assumptions
+
+###brief view of the output and froh by individual:
 #read in output table, only the RG (roh segment) lines
-roh <- read.table("/Users/tylerbostwick/bcftools/roh.txt", comment.char = "#", header = FALSE)
+roh_LD <- read.table("/Users/tylerbostwick/bcftools/roh_LD05.txt", comment.char = "#", header = FALSE)
 # Keep only ROH segment rows (RG), drop per-site rows (ST)
-roh <- roh[roh$V1 == "RG", ]
+roh_LD <- roh_LD[roh_LD$V1 == "RG", ]
 # Name the columns
-colnames(roh) <- c("type", "sample", "chromosome", "start", "end", "length_bp", "n_markers", "quality")
+colnames(roh_LD) <- c("type", "sample", "chromosome", "start", "end", "length_bp", "n_markers", "quality")
 # Drop the type column since everything is RG now
-roh$type <- NULL
-
+roh_LD$type <- NULL
 ##filter roh segments for high quality scores only
 # Keep only high confidence ROH
-roh_hq <- roh[roh$quality >= 30, ]
+roh_LD_hq <- roh_LD[roh_LD$quality >= 30, ]
 # Filter by minimum length (e.g. 500kb, similar to the plink parameters)
-roh_filtered <- roh_hq[roh_hq$length_bp >= 500000, ]
-
+roh_LD_filt <- roh_LD_hq[roh_LD_hq$length_bp >= 500000, ]
 ##testing output: FROH by individual
 #Sum ROH length per individual
-ind_roh <- aggregate(length_bp ~ sample, data = roh, FUN = sum)
+ind_roh_LD <- aggregate(length_bp ~ sample, data = roh_LD_filt, FUN = sum)
 # Calculate FROH
-ind_roh$FROH <- (ind_roh$length_bp / 2425730029) * 100
+ind_roh_LD$FROH <- (ind_roh_LD$length_bp / 2425730029) * 100
 
-##testing why the output is so non-variating before the filtering
-hist(roh$length_bp / 1e6, breaks = 50, xlab = "ROH length (Mb)")
-summary(roh$length_bp)
+#writing tables
+write.csv(ind_roh_LD, "froh_by_individual_hmm.csv")
+write.csv(roh_LD_filt, "roh_segments_filt_qual_length_hmm.csv")
 
-
-
-
-
-##roh selection
-#ROH parameters used in thesis -- might need to thin, this data set is not thinned
-system("./plink --bfile wild_kin_roh_filter --allow-extra-chr --chr-set 17 --homozyg --homozyg-gap 1000 --homozyg-kb 500 --homozyg-snp 50 --homozyg-window-het 3 --homozyg-het 20 --homozyg-window-missing 20 --homozyg-window-snp 100 --homozyg-window-threshold 0.02 --out thesis_roh_params")
-      #error in --homozyg-kb and homozyg-window-threshold
-manu_roh_param_select <- read.table("plink.hom.indiv", header = T)
 
 ####ROH assessment
 #average % genome in roh by population
@@ -373,133 +369,6 @@ ggplot() +
         plot.title = element_text(size = 16, hjust = 0.5),
         legend.position = "none")
 
-#zoo -- populate dataframe with ID's and percent genome for each parameter test
-zoo_roh <- read.table("zoo_roh_thin_test2.hom.indiv", header = TRUE)
-roh.df.z <-zoo_roh$IID #populate ID's
-roh.df.z <- as.data.frame(roh.df.z) #create the data frame
-roh.df.z$Thin_test2 <- ((zoo_roh$KB*1000)/2425730029)*100
-write.csv(roh.df.z, "zoo_roh_percentgenome.csv")
-z_pop_id <-read.csv("zoo_origins.csv")
-colnames(z_pop_id)[1] <- "IID"
-colnames(roh.df.z)[1] <- "IID"
-roh_zoo <- merge(roh.df.z, z_pop_id, by = "IID", all = TRUE)
-
-origin_mean_roh <- roh_zoo %>%
-  group_by(Cat.Group) %>%
-  summarise(Average = mean(Thin_test2, na.rm = TRUE),
-            Count = n(),
-            StdDev = sd(Thin_test2, na.rm = TRUE),
-            StdError = (sd(Thin_test2, na.rm = TRUE)/sqrt(n())))
-#checking outliers
-merged_df <- merge(roh_zoo, origin_mean_roh, by = "Cat.Group")
-merged_df$z_score <- abs((merged_df$Thin_test2 - merged_df$Average) / merged_df$StdDev)
-outliers_1sd <- sum(merged_df$z_score > 1, na.rm = TRUE)
-outliers_2sd <- sum(merged_df$z_score > 2, na.rm = TRUE)
-outliers_3sd <- sum(merged_df$z_score > 3, na.rm = TRUE)
-
-outlier_summary <- data.frame(
-  standard_deviations = c(1, 2, 3),
-  count_outside = c(outliers_1sd, outliers_2sd, outliers_3sd),
-  percent_outside = c(outliers_1sd/nrow(merged_df) * 100,
-                      outliers_2sd/nrow(merged_df) * 100,
-                      outliers_3sd/nrow(merged_df) * 100)
-)
-
-outliers_by_group <- merged_df %>%
-  group_by(Cat.Group) %>%
-  summarise(
-    total_individuals = n(),
-    outside_1sd = sum(z_score > 1, na.rm = TRUE),
-    outside_2sd = sum(z_score > 2, na.rm = TRUE),
-    outside_3sd = sum(z_score > 3, na.rm = TRUE),
-    pct_outside_1sd = outside_1sd / total_individuals * 100,
-    pct_outside_2sd = outside_2sd / total_individuals * 100,
-    pct_outside_3sd = outside_3sd / total_individuals * 100
-  )
-
-outliers_1sd_individuals <- merged_df[merged_df$z_score > 1, ]
-outliers_2sd_individuals <- merged_df[merged_df$z_score > 2, ]
-outliers_3sd_individuals <- merged_df[merged_df$z_score > 3, ]
-
-#adding wild individuals to the plot
-roh.df.merge1 <- ind_merged$IID #populate ID's
-colnames(roh.df.merge1)[1] <- "IID"
-roh.df.merge1 <- as.data.frame(roh.df.merge1) #create the data frame
-roh.df.merge1$thin2_merged <- ((ind_merged$KB*1000)/2425730029)*100
-write.csv(roh.df.merge, "merged_roh_thin2.csv")
-summary(thin2_merged$KB)
-roh.df.merge1 <- merge(roh.df.merge1, w_pop_id_df, by = "IID", all = TRUE)
-colnames(roh.df.merge1)[2] <- "Thin_test2"
-colnames(roh.df.merge1)[3] <- "Cat.Group"
-lepa_roh_df <- bind_rows(
-  roh.df.merge1 %>% select(IID, Thin_test2, Cat.Group),  # adjust column names as needed
-  roh_zoo %>% select(IID, Thin_test2, Cat.Group)
-)
-write.csv(lepa_roh_df, "supplemental_table_roh.csv")
-#FROH violin plot with both wild and zoo present
-lepa_roh_df <- read.csv("supplemental_table_roh.csv")
-ggplot() +
-  # violin plot
-  geom_violin(data = lepa_roh_df, aes(x = Cat.Group, y = Thin_test2, fill = Cat.Group), 
-              alpha = 0.7) +
-  # Add individual points
-  geom_jitter(data = lepa_roh_df, aes(x = Cat.Group, y = Thin_test2), 
-              width = 0.1, alpha = 0.4, size = 1) +
-  # Add population means with error bars
-  geom_point(data = origin_mean_roh, aes(x = Cat.Group, y = Average), 
-             color = "black", size = 4, shape = 18) +
-  geom_errorbar(data = origin_mean_roh, 
-                aes(x = Cat.Group, y = Average, 
-                    ymin = pmax(0, Average - StdDev), 
-                    ymax = Average + StdDev),
-                color = "black", width = 0.2, size = 1) +
-  scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c",
-                               "Generic" = "#D66857", "Brazilian" = "#3B967f")) +
-  # Labels and theme
-  labs(x = "Origin", y = expression(F[ROH])) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        plot.title = element_text(size = 16, hjust = 0.5),
-        legend.position = "none")
-#FROH violin plot with just zoo
-ggplot() +
-  # violin plot
-  geom_violin(data = roh_zoo, aes(x = Cat.Group, y = Thin_test2, fill = Cat.Group), alpha = 0.7) +
-  # Add individual points
-  geom_jitter(data = roh_zoo, aes(x = Cat.Group, y = Thin_test2),
-              width = 0.1, alpha = 0.4, size = 1) +
-  # Add population means with error bars
-  geom_point(data = origin_mean_roh, aes(x = Cat.Group, y = Average),
-             color = "black", size = 4, shape = 18) +
-  geom_errorbar(data = origin_mean_roh, 
-                aes(x = Cat.Group, y = Average, 
-                    ymin = pmax(0, Average - 2*StdDev), ymax = Average + 2*StdDev),
-                color = "black", width = 0.2, size = 1) +
-  scale_fill_manual(values = c("Generic" = "#D66857", "Brazilian" = "#3B967f")) +
-  # Labels and theme
-  labs(x = "Origin", y = expression(F[ROH])) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        plot.title = element_text(size = 16, hjust = 0.5),
-        legend.position = "none")
-#zoo descriptive stats
-z_roh_t2 <- read.table("zoo_roh_thin_test2.hom", header = T)
-z_roh_descript <- merge(z_roh_t2, z_pop_id, by = "IID", all = TRUE)
-z_roh_descript$Length_MB <- z_roh_descript$KB/1000
-z_roh_descript$Category <- cut(z_roh_descript$Length_MB,
-                               breaks = c(0, 1, 2, 4, 6, 8, Inf),
-                               labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", ">8Mb"),
-                               include.lowest = TRUE)
-z_population_category_counts <- z_roh_descript %>%
-  group_by(Cat.Group, Category)  %>%
-  summarise(Count = n(), Total_Length_MB = sum(Length_MB), .groups = "drop")
-write.csv(z_population_category_counts, "zoo_roh_categories.csv")
-write.csv(origin_mean_roh, "zoo_mean_roh.csv")
-summary(z_roh_descript$Length_MB)
 
 ####proportion of ROH lengths
 #read in .hom files
