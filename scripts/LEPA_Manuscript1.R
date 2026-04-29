@@ -286,6 +286,7 @@ setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selecti
 #./bcftools roh -G30 --estimate-AF - --rec-rate 1.1 -Or -o roh_LD05.txt \ /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/clean_roh_LDpruned_05.vcf.gz
     #key changes, now estimates allele frequencies from data instead of using default, uses the domestic cat recombination rate
     #and is using LD pruned data to better fit model assumptions
+        
 
 ###brief view of the output and froh by individual:
 #read in output table, only the RG (roh segment) lines
@@ -305,63 +306,47 @@ roh_LD_filt <- roh_LD_hq[roh_LD_hq$length_bp >= 500000, ]
 #Sum ROH length per individual
 ind_roh_LD <- aggregate(length_bp ~ sample, data = roh_LD_filt, FUN = sum)
 # Calculate FROH
-ind_roh_LD$FROH <- (ind_roh_LD$length_bp / 2425730029) * 100
+ind_roh_LD$FROH <- (ind_roh_LD$length_bp / 2441604590) * 100. #updated number of bases to reflect the geofferys cat genome
 
 #writing tables
 write.csv(ind_roh_LD, "froh_by_individual_hmm.csv")
 write.csv(roh_LD_filt, "roh_segments_filt_qual_length_hmm.csv")
 
+#adding population labels to data
+pop_id <- read.table("wild_pop_id.txt", header = FALSE)
+colnames(pop_id) <- c("sample", "pop")
+as.data.frame(pop_id)
+wild_roh_pop <- left_join(ind_roh_LD, pop_id, by = "sample")
 
 ####ROH assessment
 #average % genome in roh by population
-population_mean_roh <- roh.df %>%
-  group_by(pop_id) %>%
-  summarise(Average = mean(Thin_test2, na.rm = TRUE),
+population_mean_roh <- wild_roh_pop %>%
+  group_by(pop) %>%
+  summarise(Average = mean(FROH, na.rm = TRUE),
             Count = n(),
-            StdDev = sd(Thin_test2, na.rm = TRUE),
-            StdError = (sd(Thin_test2, na.rm = TRUE)/sqrt(n())))
-#plot1
-ggplot() +
-  geom_boxplot(data = roh.df,
-               aes(x = pop_id, y = Thin_test2),
-               width = 0.5, alpha = 0.7, outlier.shape = 1) +
-  geom_point(data = population_mean_roh,
-             aes(x = pop_id, y = Average),
-             color = "red", size = 3) +
-  geom_errorbar(data = population_mean_roh,
-                aes(x = pop_id, ymin = Average - StdError, ymax = Average + StdError),
-                width = 0.2, color = "red", linewidth = 1) +
-  labs(title = "Distibution of ROH % by Population",
-       x = "Population",
-       y = "Percent genome in ROH") +
-  theme_minimal() +
-  theme(plot.title = element_text(hjust = 0.5, face = "bold"),
-        axis.title = element_text(face = "bold"))
+            StdDev = sd(FROH, na.rm = TRUE),
+            StdError = (sd(FROH, na.rm = TRUE)/sqrt(n())))
+
+write.csv(population_mean_roh, "population_mean_froh_table.csv")
 
 #violin plot of wild FROH
-l_pop <- read.csv("lepa_origins.csv")
-l_pop <- rename(l_pop, ID = individual)
-roh.df <- read.csv("wild_roh_percentgenome.csv", header = TRUE) #read in data
-population_mean_roh <- read.csv("pop_mean_froh_merged.csv", header = TRUE) #read in data
-roh.df <- rename(roh.df, ID = roh.df)
-roh.df <- left_join(roh.df, l_pop, by = "ID")
 ggplot() +
   # violin plot
-  geom_violin(data = roh.df, aes(x = Pop, y = Thin_test2, fill = Pop), 
+  geom_violin(data = wild_roh_pop, aes(x = pop, y = FROH, fill = pop), 
               alpha = 0.7) +
   # Add individual points
-  geom_jitter(data = roh.df, aes(x = Pop, y = Thin_test2), 
-              width = 0.1, alpha = 0.4, size = 1) +
+  geom_jitter(data = wild_roh_pop, aes(x = pop, y = FROH), 
+              width = 0.1, alpha = 0.6, size = 3) +
   # Add population means with error bars
-  geom_point(data = population_mean_roh, aes(x = pop_id, y = Average), 
+  geom_point(data = population_mean_roh, aes(x = pop, y = Average), 
              color = "red", size = 4, shape = 18) +
   geom_errorbar(data = population_mean_roh, 
-                aes(x = pop_id, y = Average, 
+                aes(x = pop, y = Average, 
                     ymin = Average - 2*StdDev, ymax = Average + 2*StdDev),
                 color = "red", width = 0.2, size = 1) +
-  scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c")) +
+  scale_fill_manual(values = c("ranch" = "#ffb2b0", "refuge" = "#01004c")) +
   # Labels and theme
-  labs(x = "Population", y = expression(F[ROH])) +
+  labs(x = "Population", y = expression(F[ROH] ("%"))) +
   theme_minimal() +
   theme(axis.text.x = element_text(size = 12),
         axis.text.y = element_text(size = 12),
@@ -372,51 +357,38 @@ ggplot() +
 
 ####proportion of ROH lengths
 #read in .hom files
-w_roh_t2 <- read.table("wild_roh_thin_test2.hom", header = T) #thin test 2
-w_roh_ct <- read.table("wild_thin_composite1.hom", header = T) #composite test 1
+roh_seg_df <- read.csv("roh_segments_filt_qual_length_hmm.csv", header = TRUE)
 #adding population information
-colnames(w_pop_id_df)[1] <- "IID"
-w_roh_t2 <- merge(w_roh_t2, w_pop_id_df, by = "IID", all = TRUE)
+roh_seg_df <- merge(roh_seg_df, pop_id, by = "sample", all = TRUE)
 #calculate length in Mb -- kb to mb conversion
-w_roh_t2$Length_MB <- w_roh_t2$KB/1000
-w_roh_ct$Length_MB <- w_roh_ct$KB/1000
+roh_seg_df$length_MB <- roh_seg_df$length_bp/1000000
 #look at resulting distribution
-dev.off()
-hist(w_roh_t2$Length_MB, main="Distribution of ROH lengths -- T2", xlab="Length (MB)")
-hist(w_roh_ct$Length_MB, main = "Distribution of ROH lengths -- CT", xlab = "Length (MB)")
+hist(roh_seg_df$length_MB, main="Distribution of ROH lengths", xlab="Length (MB)")
+max(roh_seg_df$length_MB, na.rm = TRUE) #57.40477
+min(roh_seg_df$length_MB, na.rm = TRUE) #0.500043
+mean(roh_seg_df$length_MB, na.rm = TRUE) #3.411263
 #define length categories
-w_roh_t2$Category <- cut(w_roh_t2$Length_MB,
-                         breaks = c(0, 1, 2, 4, 6, 8, Inf),
-                         labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", ">8Mb"),
-                         include.lowest = TRUE)
-w_roh_ct$Category <- cut(w_roh_ct$Length_MB,
-                         breaks = c(0, 1, 2, 4, 6, 8, Inf),
-                         labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", ">8Mb"),
-                         include.lowest = TRUE)
+roh_seg_df$Category <- cut(roh_seg_df$length_MB,
+                           breaks = c(0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 30, 40, 50, Inf),
+                           labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", "8-10MB", "10-12Mb", "12-14Mb", 
+                                      "14-16Mb", "16-18Mb", "18-20Mb", "20Mb-30Mb", "30Mb-40Mb", "40Mb-50Mb", ">50Mb"),
+                           include.lowest = TRUE)
+#write new table
+write.csv(roh_seg_df, "hmm_roh_seg_categorized.csv")
 #get total proportion -- cumulative
-w_total_length_all <- sum(w_roh_t2$Length_MB)
-w_total_summary <- w_roh_t2 %>%
+total_length_all <- sum(roh_seg_df$length_MB)
+total_summary <- roh_seg_df %>%
   group_by(Category) %>%
   summarize(
     Count = n(),
-    Total_Length_MB = sum(Length_MB),
-    Proportion_Length = sum(Length_MB)/w_total_length_all,
-    Proportion_count = n()/nrow(w_roh_t2)
-  )
-w_total_length_all_ct <- sum(w_roh_ct$Length_MB)
-w_total_summary_ct <- w_roh_ct %>%
-  group_by(Category) %>%
-  summarise(
-    Count = n(),
-    Total_Length_MB = (sum(Length_MB)),
-    Proportion_Length = sum(Length_MB)/w_total_length_all_ct,
-    Proportion_count = n()/nrow(w_roh_ct)
+    Total_Length_MB = sum(length_MB),
+    Proportion_Length = sum(length_MB)/total_length_all,
+    Proportion_count = n()/nrow(roh_seg_df)
   )
 #save results
-write.csv(w_total_summary, "overall_roh_length_proportions_t2.csv")
-write.csv(w_total_summary_ct, "overall_roh_length_proportions_ct1.csv")
+write.csv(total_summary, "overall_roh_length_proportions.csv")
 
-#summary by individual
+##~~done through here~~##
 
 #summary by population 
 population_category_counts <- w_roh_t2 %>%
@@ -450,8 +422,9 @@ normalized_roh <- population_category_counts %>%
 write.csv(normalized_roh, "pop_normalized_roh.csv")
 write.csv(population_mean_roh, "pop_mean_froh.csv")
 write.csv(w_total_summary, "roh_summary.csv")
-####Visualizing ROH --karyotype plot -- wild
 
+
+####Visualizing ROH --karyotype plot -- wild
 #read in hom file
 w_hom <- read.table("wild_thin_composite2.hom", header = TRUE)
 #make data frame for plotting
