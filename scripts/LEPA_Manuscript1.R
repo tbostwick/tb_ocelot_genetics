@@ -21,6 +21,8 @@
 setwd("/Volumes/Expansion/2_TB_Working_Files/Plink_files") #WD if working out of the hard drive
 setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files") #WD if working off of the laptop
 #installing and libraring required packages
+if (!require("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
 library(ggplot2)
 library(dplyr)
 library(HardyWeinberg)
@@ -35,6 +37,16 @@ library(poppr)
 library(SNPRelate)
 library(dartR)
 ##for karyotype plots
+install.packages(c("karyoploteR", "regioneR", "GenomicRanges", "data.table", "IRanges", "GenomicAlignments"))
+BiocManager::install("karyoploteR")
+if (!requireNamespace("regioneR", quietly = TRUE))
+  BiocManager::install("regioneR")
+if (!requireNamespace("GenomicRanges", quietly = TRUE))
+  BiocManager::install("GenomicRanges")
+if (!requireNamespace("IRanges", quietly = TRUE))
+  BiocManager::install("IRanges")
+if (!requireNamespace("data.table", quietly = TRUE))
+  install.packages("data.table")
 library(karyoploteR)
 library(regioneR)
 library(GenomicRanges)
@@ -270,7 +282,7 @@ w_k2plot <-
   guides(fill = "none")
 w_k2plot
 ggsave("wild_k2_admixture_Apr2026.png", w_k2plot, width = 15, height = 8, bg = "white")
-####ROH -- not done####
+####ROH -- Done! Mostly, needs small tweaks in plotting####
 #set working directory to roh specific folder
 setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection")
 
@@ -283,14 +295,16 @@ setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selecti
 #./bcftools reheader -h clean_header.txt /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/roh_LDpruned_05.vcf.gz -o /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/clean_roh_LDpruned_05.vcf.gz
 
 #identify roh:
-#./bcftools roh -G30 --estimate-AF - --rec-rate 1.1 -Or -o roh_LD05.txt \ /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/clean_roh_LDpruned_05.vcf.gz
+#./bcftools roh -G30 --estimate-AF - --rec-rate 1.1e-8 -Or -o roh_LD05.txt \ /Users/tylerbostwick/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection/clean_roh_LDpruned_05.vcf.gz
     #key changes, now estimates allele frequencies from data instead of using default, uses the domestic cat recombination rate
     #and is using LD pruned data to better fit model assumptions
+    #as of 4/29/26 -- fixed the rec-rate flag
+        #kept g30, lowered it down to g20 and had minimal change in percentages, no break in long runs with the correct rec rate
         
 
 ###brief view of the output and froh by individual:
 #read in output table, only the RG (roh segment) lines
-roh_LD <- read.table("/Users/tylerbostwick/bcftools/roh_LD05.txt", comment.char = "#", header = FALSE)
+roh_LD <- read.table("roh_LD05_v2.txt", comment.char = "#", header = FALSE)
 # Keep only ROH segment rows (RG), drop per-site rows (ST)
 roh_LD <- roh_LD[roh_LD$V1 == "RG", ]
 # Name the columns
@@ -310,7 +324,7 @@ ind_roh_LD$FROH <- (ind_roh_LD$length_bp / 2441604590) * 100. #updated number of
 
 #writing tables
 write.csv(ind_roh_LD, "froh_by_individual_hmm.csv")
-write.csv(roh_LD_filt, "roh_segments_filt_qual_length_hmm.csv")
+write.csv(roh_LD_filt, "roh_segments_filt_qual_length_hmm.csv", row.names = FALSE)
 
 #adding population labels to data
 pop_id <- read.table("wild_pop_id.txt", header = FALSE)
@@ -359,19 +373,24 @@ ggplot() +
 #read in .hom files
 roh_seg_df <- read.csv("roh_segments_filt_qual_length_hmm.csv", header = TRUE)
 #adding population information
+pop_id <- read.table("wild_pop_id.txt", header = FALSE)
+colnames(pop_id) <- c("sample", "pop")
+as.data.frame(pop_id)
 roh_seg_df <- merge(roh_seg_df, pop_id, by = "sample", all = TRUE)
-#calculate length in Mb -- kb to mb conversion
+#calculate length in Mb -- bp to mb conversion
 roh_seg_df$length_MB <- roh_seg_df$length_bp/1000000
+roh_seg_df$length_KB <- roh_seg_df$length_bp/1000 #converting bp to kilobase pair
 #look at resulting distribution
 hist(roh_seg_df$length_MB, main="Distribution of ROH lengths", xlab="Length (MB)")
-max(roh_seg_df$length_MB, na.rm = TRUE) #57.40477
-min(roh_seg_df$length_MB, na.rm = TRUE) #0.500043
-mean(roh_seg_df$length_MB, na.rm = TRUE) #3.411263
+max(roh_seg_df$length_MB, na.rm = TRUE) #105.4423
+min(roh_seg_df$length_MB, na.rm = TRUE) #0.500084
+mean(roh_seg_df$length_MB, na.rm = TRUE) #4.747192
 #define length categories
 roh_seg_df$Category <- cut(roh_seg_df$length_MB,
-                           breaks = c(0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 30, 40, 50, Inf),
-                           labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", "8-10MB", "10-12Mb", "12-14Mb", 
-                                      "14-16Mb", "16-18Mb", "18-20Mb", "20Mb-30Mb", "30Mb-40Mb", "40Mb-50Mb", ">50Mb"),
+                           breaks = c(0, 1, 2, 4, 6, 8, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, Inf),
+                           labels = c("<1Mb", "1-2Mb", "2-4Mb", "4-6Mb", "6-8Mb", "8-10MB", "10-20Mb",
+                                      "20Mb-30Mb", "30Mb-40Mb", "40Mb-50Mb", "50Mb-60Mb", "60Mb-70Mb",
+                                      "70Mb-80Mb", "80Mb-90Mb", "90Mb-100Mb", ">100Mb"),
                            include.lowest = TRUE)
 #write new table
 write.csv(roh_seg_df, "hmm_roh_seg_categorized.csv")
@@ -388,27 +407,26 @@ total_summary <- roh_seg_df %>%
 #save results
 write.csv(total_summary, "overall_roh_length_proportions.csv")
 
-##~~done through here~~##
 
 #summary by population 
-population_category_counts <- w_roh_t2 %>%
-  group_by(pop_id, Category)  %>%
-  summarise(Count = n(), Total_Length_MB = sum(Length_MB), .groups = "drop")
+population_category_counts <- roh_seg_df %>%
+  group_by(pop, Category)  %>%
+  summarise(Count = n(), Total_Length_MB = sum(length_MB), .groups = "drop")
 #proportion by population
 population_category_proportions <- population_category_counts %>%
-  group_by(pop_id) %>%
+  group_by(pop) %>%
   mutate(Proportion_Count = Count/sum(Count),
          Proportion_Length = Total_Length_MB/sum(Total_Length_MB))
 
 #normalizing data for direct comparison
 individuals_per_pop <- data.frame(
-  pop_id = c("Ranch", "Refuge"),
-  n_individuals = c(26, 18)
+  pop = c("ranch", "refuge"),
+  n_individuals = c(23, 21)
 )
 
 normalized_roh <- population_category_counts %>%
-  left_join(individuals_per_pop, by = "pop_id") %>%
-  group_by(pop_id) %>%
+  left_join(individuals_per_pop, by = "pop") %>%
+  group_by(pop) %>%
   mutate(
     # Within-population proportions
     Proportion_Count = Count / sum(Count),
@@ -420,105 +438,99 @@ normalized_roh <- population_category_counts %>%
   ) %>%
   ungroup()
 write.csv(normalized_roh, "pop_normalized_roh.csv")
-write.csv(population_mean_roh, "pop_mean_froh.csv")
-write.csv(w_total_summary, "roh_summary.csv")
 
 
-####Visualizing ROH --karyotype plot -- wild
+####Visualizing ROH --karyotype plot --- individual plots working, need to find and update chromosome lengths -- email brian davis?
 #read in hom file
-w_hom <- read.table("wild_thin_composite2.hom", header = TRUE)
+roh_seg_df <- read.csv("hmm_roh_seg_categorized.csv", header = TRUE)
 #make data frame for plotting
-w_roh_plot <- data.frame(
-  chr = paste0(w_hom$CHR),  # Add 'chr' prefix if needed
-  start = w_hom$POS1,
-  end = w_hom$POS2,
-  kb = w_hom$KB,           # ROH length in KB
-  nsnp = w_hom$NSNP,       # Number of SNPs in ROH
-  sample_id = w_hom$IID    # Individual ID
+plot_df <- data.frame(
+  chr = paste0(roh_seg_df$chromosome),  # Add 'chr' prefix if needed
+  start = roh_seg_df$start, #starting location of roh
+  end = roh_seg_df$end, #ending location of roh
+  kb = roh_seg_df$length_KB,   # ROH length in KB
+  nsnp = roh_seg_df$n_markers,   # Number of SNPs in ROH
+  sample_id = roh_seg_df$sample, # Individual ID
+  pop = roh_seg_df$pop #population information
 )
-w_pop_id <- read.csv("wild_origins_2.csv") #adding population information
-w_pop_id_df <-as.data.frame(w_pop_id)
-w_roh_pop <- merge(w_roh_plot, w_pop_id_df, by = "sample_id", all = TRUE) #merging the population information with the data frame
-#fixing chrome naming
+#applying chromosome names for plots
 chr_map <- c(
-  "NC_058368.1" = "chr1",
-  "NC_058369.1" = "chr2",
-  "NC_058370.1" = "chr3",
-  "NC_058371.1" = "chr4",
-  "NC_058372.1" = "chr5",
-  "NC_058373.1" = "chr6",
-  "NC_058374.1" = "chr7",
-  "NC_058375.1" = "chr8",
-  "NC_058376.1" = "chr9",
-  "NC_058377.1" = "chr10",
-  "NC_058378.1" = "chr11",
-  "NC_058379.1" = "chr12",
-  "NC_058380.1" = "chr13",
-  "NC_058381.1" = "chr14",
-  "NC_058382.1" = "chr15",
-  "NC_058383.1" = "chr16",
-  "NC_058384.1" = "chr17",
-  "NC_058385.1" = "chr18"
+  "1" = "chr1",
+  "2" = "chr2",
+  "3" = "chr3",
+  "4" = "chr4",
+  "5" = "chr5",
+  "6" = "chr6",
+  "7" = "chr7",
+  "8" = "chr8",
+  "9" = "chr9",
+  "10" = "chr10",
+  "11" = "chr11",
+  "12" = "chr12",
+  "13" = "chr13",
+  "14" = "chr14",
+  "15" = "chr15",
+  "16" = "chr16",
+  "17" = "chr17"
 )
-w_roh_plot$chr <- chr_map[w_roh_plot$chr]
-#create custom feline genotype for karyoploteR, make a custom plot type for the 18 chr
-feline_chr_sizes <- data.frame(
-  chr = c(paste0("chr", 1:18)), 
-  start = rep(1, 18),
-  end = c(239367248,  # chr1
-          169388855,  # chr2
-          140443288,  # chr3
-          205367284,  # chr4
-          151959158,  # chr5
-          148491486,  # chr6
-          142168536,  # chr7
-          221611373,  # chr8
-          158578461,  # chr9
-          115366950,  # chr10
-          88083857,   # chr11
-          94435393,   # chr12
-          95154158,   # chr13
-          61876196,   # chr14
-          61988844,   # chr15
-          41437797,   # chr16
-          69239673,   # chr17
-          83466477   # chr18
+plot_df$chr <- chr_map[plot_df$chr]
+#create custom feline genotype for karyoploteR, make a custom plot type for the 17 chr
+LP_chr_sizes <- data.frame(
+  chr = c(paste0("chr", 1:17)), 
+  start = rep(1, 17),
+  end = c(239694388,  # chr1
+          205836458,  # chr2
+          222052948,  # chr3
+          115783437,  # chr4
+          61591894,  # chr5
+          169709481,  # chr6
+          152606360,  # chr7
+          158996348,  # chr8
+          88472993,  # chr9
+          62031975,  # chr10
+          140630183,   # chr11
+          148130213,   # chr12
+          153706148,   # chr13
+          94884351,   # chr14
+          42047855,   # chr15
+          142838203,   # chr16
+          94461142   # chr17
   )
 )  
-feline_genome_gr <- GRanges(seqnames = feline_chr_sizes$chr, ranges = IRanges(start = feline_chr_sizes$start, end = feline_chr_sizes$end)) #make into grange object
+feline_genome_gr <- GRanges(seqnames = LP_chr_sizes$chr, ranges = IRanges(start = LP_chr_sizes$start, end = LP_chr_sizes$end)) #make into grange object
 ocel_genome <- feline_genome_gr #making the custom plot type
-seqlevels(ocel_genome) <- feline_chr_sizes$chr
-seqlengths(ocel_genome) <- feline_chr_sizes$end
+seqlevels(ocel_genome) <- LP_chr_sizes$chr
+seqlengths(ocel_genome) <- LP_chr_sizes$end
 
 # roh convert to GRanges object
-w_roh_gr <- GRanges(
-  seqnames = w_roh_plot$chr,
-  ranges = IRanges(start = w_roh_plot$start, end = w_roh_plot$end),
-  kb = w_roh_plot$kb,
-  nsnp = w_roh_plot$nsnp,
-  sample_id = w_roh_plot$sample_id) #making hom file into grange
+roh_gr <- GRanges(
+  seqnames = plot_df$chr,
+  ranges = IRanges(start = plot_df$start, end = plot_df$end),
+  kb = plot_df$kb,
+  nsnp = plot_df$nsnp,
+  sample_id = plot_df$sample_id) #making hom file into grange
 
-pop_gr <- GRanges(
-  seqnames = w_roh_pop$chr,
-  ranges = IRanges(start = w_roh_pop$start, end = w_roh_pop$end),
-  kb = w_roh_pop$kb,
-  nsnp = w_roh_pop$nsnp,
-  sample_id = w_roh_pop$sample_id,
-  population_id = w_roh_pop$pop_id)
+pop_gr <- GRanges( #### skipped for now
+  seqnames = plot_df$chr,
+  ranges = IRanges(start = plot_df$start, end = plot_df$end),
+  kb = plot_df$kb,
+  nsnp = plot_df$nsnp,
+  sample_id = plot_df$sample_id,
+  population_id = plot_df$pop_id)
 
 #####creating function for plotting -- individual
 plot_individual_roh <- function(sample_id, output_file = NULL) {
   # Filter ROH data for specific individual
-  individual_roh <- w_roh_gr[mcols(w_roh_gr)$sample_id %in% sample_id]
+  individual_roh <- roh_gr[mcols(roh_gr)$sample_id %in% sample_id]
   # Determine if output should go to a file
   if (!is.null(output_file)) {
     pdf(output_file, width = 10, height = 7)
   }
   #create the plot using the custom genome
-  w_kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH for", sample_id))
+  ind_kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH for", sample_id))
   #kpAddChromosomeNames(w_kp, srt = 45, cex = 0.8) #not using this line for now
   #plot individuals
-  kpRect(w_kp, 
+  kpRect(ind_kp, 
          chr = as.character(seqnames(individual_roh)), 
          x0 = start(individual_roh), 
          x1 = end(individual_roh),
@@ -535,7 +547,7 @@ plot_individual_roh <- function(sample_id, output_file = NULL) {
   return(individual_roh)
 }
 
-####function for plotting -- population wide
+####function for plotting -- population wide   ~~~~###skipped for now - not updated
 plot_population_roh_smoothed <- function(population_id, output_file = NULL, window_size = 1e5, smooth = TRUE) {
   # Subset to individuals from the desired population
   pop_roh <- pop_gr[mcols(pop_gr)$population_id == population_id]
@@ -587,10 +599,10 @@ plot_population_roh_smoothed <- function(population_id, output_file = NULL, wind
 }
 
 ##using the function -- plotting individual roh
-unique_samples <- unique(w_roh_plot$sample_id)
+unique_samples <- unique(plot_df$sample_id)
 print(paste("Found", length(unique_samples), "samples in the data"))
 
-##using the function -- plotting population roh
+##using the function -- plotting population roh. ~~~~~##skipped for now, not updated
 unique_pops <- unique(mcols(pop_gr)$population_id)
 
 
@@ -602,7 +614,7 @@ sanitize_filename <- function(name) {
 # Create directory for plots
 dir.create("wild_roh_plots", showWarnings = FALSE)
 
-dir.create("wild_roh_density_plots", showWarnings = FALSE)
+dir.create("wild_roh_density_plots", showWarnings = FALSE) #skipped for now
 
 # Loop through each sample and create sanitized output files
 for (sample_id in unique_samples) {
@@ -611,7 +623,7 @@ for (sample_id in unique_samples) {
   plot_individual_roh(sample_id, output_file)
 }
 
-#loop through to create output files
+#loop through to create output files ~~~~### skipped for now
 for (pop in unique_pops) {
   safe_name <- sanitize_filename(pop)
   output_file <- paste0("wild_roh_density_plots/pop_", safe_name, "_roh_density.pdf")
