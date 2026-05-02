@@ -135,6 +135,12 @@ system("./plink --bfile SNP_wild_dp7_gq9_bi --chr-set 17 --keep-allele-order --m
 
 ####Export full wild standard vcf
 system("./plink2 --bfile wild_standard_final --chr-set 17 --export vcf-4.2 bgz --out wild_standard_final")
+##split into ranch and refuge for population level nucleotide diveristy
+system("./plink --bfile wild_standard_final --keep ranch_subset_vcftools.txt --chr-set 17 --make-bed --out ranch_standard_postsubset") #ranch
+system("./plink --bfile wild_standard_final --remove ranch_subset_vcftools.txt --chr-set 17 --make-bed --out refuge_standard_postsubset") #refuge
+#export subsetted files
+system("./plink2 --bfile ranch_standard_postsubset --chr-set 17 --export vcf-4.2 bgz --out ranch_standard_postsubset")
+system("./plink2 --bfile refuge_standard_postsubset --chr-set 17 --export vcf-4.2 bgz --out refuge_standard_postsubset")
 
 ####additional filtering for select analyses####
 #LD pruning
@@ -282,7 +288,7 @@ w_k2plot <-
   guides(fill = "none")
 w_k2plot
 ggsave("wild_k2_admixture_Apr2026.png", w_k2plot, width = 15, height = 8, bg = "white")
-####ROH -- Done! Mostly, needs small tweaks in plotting####
+####ROH -- Done!####
 #set working directory to roh specific folder
 setwd("~/Documents/Masters_Work/Analyses/1_Data/1_Working_Files/manu_roh_selection")
 
@@ -320,7 +326,7 @@ roh_LD_filt <- roh_LD_hq[roh_LD_hq$length_bp >= 500000, ]
 #Sum ROH length per individual
 ind_roh_LD <- aggregate(length_bp ~ sample, data = roh_LD_filt, FUN = sum)
 # Calculate FROH
-ind_roh_LD$FROH <- (ind_roh_LD$length_bp / 2441604590) * 100. #updated number of bases to reflect the geofferys cat genome
+ind_roh_LD$FROH <- (ind_roh_LD$length_bp / 2314601649) * 100. #updated number of bases to reflect the geofferys cat genome
 
 #writing tables
 write.csv(ind_roh_LD, "froh_by_individual_hmm.csv")
@@ -478,23 +484,23 @@ plot_df$chr <- chr_map[plot_df$chr]
 LP_chr_sizes <- data.frame(
   chr = c(paste0("chr", 1:17)), 
   start = rep(1, 17),
-  end = c(239694388,  # chr1
-          205836458,  # chr2
-          222052948,  # chr3
-          115783437,  # chr4
-          61591894,  # chr5
-          169709481,  # chr6
-          152606360,  # chr7
-          158996348,  # chr8
-          88472993,  # chr9
-          62031975,  # chr10
-          140630183,   # chr11
-          148130213,   # chr12
-          153706148,   # chr13
-          94884351,   # chr14
-          42047855,   # chr15
-          142838203,   # chr16
-          94461142   # chr17
+  end = c(241490831,  # chr1
+          170782778,  # chr2
+          140550405,  # chr3
+          207231548,  # chr4
+          154917953,  # chr5
+          149666277,  # chr6
+          142417080,  # chr7
+          222385042,  # chr8
+          159437941,  # chr9
+          154776197,  # chr10
+          116981451,   # chr11
+          90819563,   # chr12
+          96629807,   # chr13
+          95534813,   # chr14
+          64119235,   # chr15
+          62492039,   # chr16
+          44368689   # chr17
   )
 )  
 feline_genome_gr <- GRanges(seqnames = LP_chr_sizes$chr, ranges = IRanges(start = LP_chr_sizes$start, end = LP_chr_sizes$end)) #make into grange object
@@ -527,7 +533,7 @@ plot_individual_roh <- function(sample_id, output_file = NULL) {
     pdf(output_file, width = 10, height = 7)
   }
   #create the plot using the custom genome
-  ind_kp <- plotKaryotype(genome = ocel_genome, plot.type = 2, main = paste("ROH for", sample_id))
+  ind_kp <- plotKaryotype(genome = ocel_genome, plot.type = 1, main = paste("ROH for", sample_id))
   #kpAddChromosomeNames(w_kp, srt = 45, cex = 0.8) #not using this line for now
   #plot individuals
   kpRect(ind_kp, 
@@ -538,7 +544,8 @@ plot_individual_roh <- function(sample_id, output_file = NULL) {
          y1 = 1, 
          col = "#FF000080",  # Semi-transparent red
          border = "#FF0000",
-         r0 = 0.5, r1 = 0.8)
+         r0 = 0, r1 = 1,
+         data.panel = "ideogram")
   # Close file if opened
   if (!is.null(output_file)) {
     dev.off()
@@ -600,7 +607,6 @@ plot_population_roh_smoothed <- function(population_id, output_file = NULL, wind
 
 ##using the function -- plotting individual roh
 unique_samples <- unique(plot_df$sample_id)
-print(paste("Found", length(unique_samples), "samples in the data"))
 
 ##using the function -- plotting population roh. ~~~~~##skipped for now, not updated
 unique_pops <- unique(mcols(pop_gr)$population_id)
@@ -636,6 +642,143 @@ dev.off()
 
 
 ####Diversity stats -- not done####
+####expected, observed, and fis
+ind_het <- read.table("wild_het.het", header = TRUE)
+#converting raw values into the proportions
+ind_het$O_het <- (ind_het$N_SITES - ind_het$O.HOM.) / ind_het$N_SITES
+ind_het$O_hom <- ind_het$O.HOM. / ind_het$N_SITES
+ind_het$E_hom <- ind_het$E.HOM. / ind_het$N_SITES
+ind_het$E_het <- (ind_het$N_SITES - ind_het$E.HOM.) / ind_het$N_SITES
+ind_het[, c("INDV", "O_hom", "O_het", "E_hom", "E_het", "F")]
+
+write.csv(ind_het, "ind_het_fis.csv")
+
+#get population averages
+pop_id <- read.table("wild_pop_id.txt", header = FALSE)
+colnames(pop_id) <- c("INDV", "pop")
+as.data.frame(pop_id)
+pop_het <- left_join(ind_het, pop_id, by = "INDV")
+
+#mean expected het
+pop_mean_he <- pop_het %>%
+  group_by(pop) %>%
+  summarise(Average = mean(E_het, na.rm = TRUE),
+            Count = n(),
+            StdDev = sd(E_het, na.rm = TRUE),
+            StdError = (sd(E_het, na.rm = TRUE)/sqrt(n())))
+write.csv(pop_mean_he, "pop_mean_he.csv")
+#mean observed het
+pop_mean_ho <- pop_het %>%
+  group_by(pop) %>%
+  summarise(Average = mean(O_het, na.rm = TRUE),
+            Count = n(),
+            StdDev = sd(O_het, na.rm = TRUE),
+            StdError = (sd(O_het, na.rm = TRUE)/sqrt(n())))
+write.csv(pop_mean_ho, "pop_mean_ho.csv")
+#mean fis
+pop_mean_f <- pop_het %>%
+  group_by(pop) %>%
+  summarise(Average = mean(F, na.rm = TRUE),
+            Count = n(),
+            StdDev = sd(F, na.rm = TRUE),
+            StdError = (sd(F, na.rm = TRUE)/sqrt(n())))
+write.csv(pop_mean_he, "pop_mean_F.csv")
+
+###nucleotide diversity - population level
+#command for producing windowed pi with vcftools, done for both populations:
+#vcftools --gzvcf refuge_standard_postsubset.vcf.gz --window-pi 50000 --out refuge-nucleotide
+
+#reading in output files
+ranch_pi <- read.table("ranch-nucleotide.windowed.pi", header = TRUE)
+refuge_pi <- read.table("refuge-nucleotide.windowed.pi", header = TRUE)
+#adding population columns
+ranch_pi$pop <- "Ranch"
+refuge_pi$pop <- "Refuge"
+#combine the two files
+all_pi <- rbind(ranch_pi, refuge_pi)
+
+#average pi per chromosome per population - weighted
+chrom_pi <- all_pi %>%
+  group_by(pop, CHROM) %>%
+  summarise(mean_pi = weighted.mean(PI, N_VARIANTS, na.rm = TRUE),
+            sd_pi = sd(PI, na.rm = TRUE),
+            n_windows = n())
+write_csv(chrom_pi, "chrom_pi_by_pop_weighted.csv")
+#plot? trying to see if interesting at all
+ggplot(chrom_pi, aes(x = factor(CHROM), y = mean_pi, fill = pop)) +
+  geom_bar(stat = "identity", position = position_dodge(width = 0.7)) + 
+  scale_y_continuous(labels = scales::number_format(accuracy = 0.00001),
+                     expand = expansion(mult = c(0, 0.05))) +
+  scale_fill_manual(values = c("Ranch" = "orchid", "Refuge" = "#01004c")) +
+  labs(x = "Chromosome",
+       y = "Mean π (Weighted)",
+       fill = "Population") +
+  theme_classic() +
+  theme(axis.text.x = element_text(size = 13.5),
+        axis.text.y = element_text(size = 12),
+        axis.title.x = element_text(size = 16),
+        axis.title.y = element_text(size = 16),
+        legend.title = element_text(size = 16),
+        legend.text = element_text(size = 12))
+
+
+#weighted genome wide pi -- weighted to reduce the affect of windows with low sites
+genome_pi_weighted <- all_pi %>%
+  group_by(pop) %>%
+  summarise(mean_pi = weighted.mean(PI, N_VARIANTS, na.rm = TRUE),
+            n_windows = n())
+write.csv(genome_pi_weighted,"weighted_genome_pi.csv")
+
+
+
+summary_pi<- read.csv("summary_pi_per_individual.csv", header = TRUE)
+#nucleotide diversitt summary -- reading in data
+nucleotide_data_clean <- summary_pi %>%
+  mutate(individual = gsub("-.*", "", individual),
+         individual = gsub("standard_final_24040DeY_", "", individual))
+origins <- as.data.frame(read.csv("lepa_origins.csv"))
+as.data.frame(nucleotide_data_clean)
+origins_clean <- origins %>%
+  mutate(individual = gsub("-.*", "", individual))
+
+nucleo_by_pop <- nucleotide_data_clean %>%
+  left_join(origins_clean, by = "individual")
+
+#making summary stats
+n_stats <- nucleo_by_pop %>%
+  group_by(Pop) %>%
+  summarise(
+    mean_pi_avg = mean(mean_pi, na.rm = TRUE),
+    sd_pi_avg = sd(mean_pi, na.rm = TRUE),
+    n_individuals = n(),
+    .groups = 'drop'
+  )
+#plotting nucleotide diversity -- wild only
+ggplot() +
+  # violin plot
+  geom_violin(data = subset(nucleo_by_pop, Pop %in% c("Ranch", "Refuge")), 
+              aes(x = Pop, y = mean_pi, fill = Pop), 
+              alpha = 0.7) +
+  # Add individual points
+  geom_jitter(data = subset(nucleo_by_pop, Pop %in% c("Ranch", "Refuge")), 
+              aes(x = Pop, y = mean_pi), 
+              width = 0.1, alpha = 0.4, size = 3) +
+  # Add population means with error bars
+  geom_point(data = subset(n_stats, Pop %in% c("Ranch", "Refuge")), aes(x = Pop, y = mean_pi_avg), 
+             color = "black", size = 4, shape = 18) +
+  geom_errorbar(data = subset(n_stats, Pop %in% c("Ranch", "Refuge")), 
+                aes(x = Pop, y = mean_pi_avg, 
+                    ymin = mean_pi_avg - 2*sd_pi_avg, ymax = mean_pi_avg + 2*sd_pi_avg),
+                color = "black", width = 0.2, size = 1) +
+  scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c")) +
+  # Labels and theme
+  labs(x = "Population", y = "Nucleotide Diversity") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 12),
+        axis.text.y = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        plot.title = element_text(size = 16, hjust = 0.5),
+        legend.position = "none")
 
 
 ####coverage stats from bcftools - can delete later to clean####
