@@ -641,8 +641,12 @@ dev.off()
 
 
 
-####Diversity stats -- not done####
+####Diversity stats -- Done!####
+
 ####expected, observed, and fis
+##code from vcftools in terminal:
+#vcftools --gzvcf wild_standard_final.vcf.gz --het  --out wild_het  
+#read in output
 ind_het <- read.table("wild_het.het", header = TRUE)
 #converting raw values into the proportions
 ind_het$O_het <- (ind_het$N_SITES - ind_het$O.HOM.) / ind_het$N_SITES
@@ -697,7 +701,7 @@ refuge_pi$pop <- "Refuge"
 #combine the two files
 all_pi <- rbind(ranch_pi, refuge_pi)
 
-#average pi per chromosome per population - weighted
+#average pi per chromosome per population - weighted to reduce the affect of windows with low sites
 chrom_pi <- all_pi %>%
   group_by(pop, CHROM) %>%
   summarise(mean_pi = weighted.mean(PI, N_VARIANTS, na.rm = TRUE),
@@ -728,57 +732,6 @@ genome_pi_weighted <- all_pi %>%
   summarise(mean_pi = weighted.mean(PI, N_VARIANTS, na.rm = TRUE),
             n_windows = n())
 write.csv(genome_pi_weighted,"weighted_genome_pi.csv")
-
-
-
-summary_pi<- read.csv("summary_pi_per_individual.csv", header = TRUE)
-#nucleotide diversitt summary -- reading in data
-nucleotide_data_clean <- summary_pi %>%
-  mutate(individual = gsub("-.*", "", individual),
-         individual = gsub("standard_final_24040DeY_", "", individual))
-origins <- as.data.frame(read.csv("lepa_origins.csv"))
-as.data.frame(nucleotide_data_clean)
-origins_clean <- origins %>%
-  mutate(individual = gsub("-.*", "", individual))
-
-nucleo_by_pop <- nucleotide_data_clean %>%
-  left_join(origins_clean, by = "individual")
-
-#making summary stats
-n_stats <- nucleo_by_pop %>%
-  group_by(Pop) %>%
-  summarise(
-    mean_pi_avg = mean(mean_pi, na.rm = TRUE),
-    sd_pi_avg = sd(mean_pi, na.rm = TRUE),
-    n_individuals = n(),
-    .groups = 'drop'
-  )
-#plotting nucleotide diversity -- wild only
-ggplot() +
-  # violin plot
-  geom_violin(data = subset(nucleo_by_pop, Pop %in% c("Ranch", "Refuge")), 
-              aes(x = Pop, y = mean_pi, fill = Pop), 
-              alpha = 0.7) +
-  # Add individual points
-  geom_jitter(data = subset(nucleo_by_pop, Pop %in% c("Ranch", "Refuge")), 
-              aes(x = Pop, y = mean_pi), 
-              width = 0.1, alpha = 0.4, size = 3) +
-  # Add population means with error bars
-  geom_point(data = subset(n_stats, Pop %in% c("Ranch", "Refuge")), aes(x = Pop, y = mean_pi_avg), 
-             color = "black", size = 4, shape = 18) +
-  geom_errorbar(data = subset(n_stats, Pop %in% c("Ranch", "Refuge")), 
-                aes(x = Pop, y = mean_pi_avg, 
-                    ymin = mean_pi_avg - 2*sd_pi_avg, ymax = mean_pi_avg + 2*sd_pi_avg),
-                color = "black", width = 0.2, size = 1) +
-  scale_fill_manual(values = c("Ranch" = "#ffb2b0", "Refuge" = "#01004c")) +
-  # Labels and theme
-  labs(x = "Population", y = "Nucleotide Diversity") +
-  theme_minimal() +
-  theme(axis.text.x = element_text(size = 12),
-        axis.text.y = element_text(size = 12),
-        axis.title = element_text(size = 14),
-        plot.title = element_text(size = 16, hjust = 0.5),
-        legend.position = "none")
 
 
 ####coverage stats from bcftools - can delete later to clean####
