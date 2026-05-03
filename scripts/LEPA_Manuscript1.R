@@ -326,7 +326,7 @@ roh_LD_filt <- roh_LD_hq[roh_LD_hq$length_bp >= 500000, ]
 #Sum ROH length per individual
 ind_roh_LD <- aggregate(length_bp ~ sample, data = roh_LD_filt, FUN = sum)
 # Calculate FROH
-ind_roh_LD$FROH <- (ind_roh_LD$length_bp / 2314601649) * 100. #updated number of bases to reflect the geofferys cat genome
+ind_roh_LD$FROH <- (ind_roh_LD$length_bp / 2314601649) * 100 #updated number of bases to reflect the geofferys cat genome
 
 #writing tables
 write.csv(ind_roh_LD, "froh_by_individual_hmm.csv")
@@ -412,6 +412,77 @@ total_summary <- roh_seg_df %>%
   )
 #save results
 write.csv(total_summary, "overall_roh_length_proportions.csv")
+
+#summary by individual
+ind_roh_summary <- roh_seg_df %>% 
+  group_by(sample) %>% 
+  summarize(
+    Count = n(),
+    total_length = sum(length_bp),
+  )
+ind_roh_summary$FROH <- (ind_roh_summary$total_length / 2314601649) * 100
+sum(ind_roh_summary$Count)
+mean(roh_seg_df$length_KB)
+
+ind_bin_summary <- roh_seg_df %>% 
+  group_by(sample, Category) %>% 
+  summarize(
+    count = n()
+  )
+view(ind_bin_summary)
+#plot generation time to roh segment
+roh_seg_cat <- read.csv("hmm_roh_seg_categorized.csv", header = TRUE)
+roh_seg_cat$gen <- 100/(2*(1.1)*roh_seg_cat$length_MB) #calculating generation time
+
+#binning generation time
+roh_seg_cat <- roh_seg_cat %>% 
+  mutate(
+    gen_bins = case_when(
+      gen < 2 ~ "<2",
+      gen >= 2 & gen < 5 ~ "5-2",
+      gen >= 5 & gen < 10 ~ "10-5",
+      gen >= 10 & gen < 20 ~ "20-10",
+      gen >= 20 & gen < 40 ~ "40-20",
+      gen >= 40 & gen < 60 ~ "60-40",
+      gen >= 60 & gen < 80 ~ "80-60",
+      gen >= 12 ~ "80+",
+      TRUE ~"Other"
+    ),
+    gen_bins = factor(gen_bins, levels = c("80+", "80-60", "60-40", "40-20", "20-10", "10-5", "5-2", "<2"))
+  )
+#get ranges of roh length in each generaton bin
+bin_ranges <- roh_seg_cat %>% 
+  group_by(gen_bins) %>% 
+  summarise(
+    min_length = min(length_MB, na.rm =TRUE),
+    max_length = max(length_MB, na.rm = TRUE),
+    range_span = max_length - min_length,
+    .groups = 'drop'
+  )
+#merge bin ranges with data frame
+gen_plot_df <- roh_seg_cat %>% 
+  left_join(bin_ranges, by = "gen_bins") %>% 
+  mutate(range_label = paste0(min_length, "-", max_length, " MB"))
+#plotting generation time by population
+ggplot(gen_plot_df, aes(x = gen_bins, fill = pop)) +
+  geom_bar(position = "dodge", stat = "count") +
+  scale_y_continuous(breaks = breaks_width(100)) +
+  labs(
+    x = "Generation Time",
+    y = "ROH Count",
+    fill = "Populations"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = c("ranch" = "orchid", "refuge" = "#01004c"),
+                    labels = c("ranch" = "Ranch", "refuge" = "Refuge")) +
+  theme(
+    axis.text.x = element_text(size = 14),
+    axis.text.y = element_text(size = 14),
+    axis.title.x = element_text(size = 16),
+    axis.title.y = element_text(size = 16),
+    legend.title = element_text(size = 16),
+    legend.text = element_text(size = 14)
+  )
 
 
 #summary by population 
@@ -636,7 +707,79 @@ for (pop in unique_pops) {
   plot_population_roh_smoothed(population_id = pop, output_file = output_file)
 }
 dev.off()
-###ROH overlap plot
+
+###ROH single chrom plot
+#reading in data
+roh_chr4 <- read.csv("hmm_roh_seg_categorized.csv", header = TRUE)
+chr4_df <- data.frame(
+  chr = paste0(roh_chr4$chromosome),  # Add 'chr' prefix if needed
+  start = roh_chr4$start, #starting location of roh
+  end = roh_chr4$end, #ending location of roh
+  kb = roh_chr4$length_KB,   # ROH length in KB
+  nsnp = roh_chr4$n_markers,   # Number of SNPs in ROH
+  sample_id = roh_chr4$sample, # Individual ID
+  pop = roh_chr4$pop #population information
+)
+#filtering dataframe for only chrome 10
+chr4plot<- chr4_df[chr4_df$chr == "4", ]
+#creating a custom genotype for karyoplotr for chrom 10 only
+feline_chr_sizes <- data.frame(
+  chr = "chr4", 
+  start = 1,
+  end = 207231548   # chr10 length only
+) 
+feline_genome_gr <- GRanges(seqnames = feline_chr_sizes$chr, ranges = IRanges(start = feline_chr_sizes$start, end = feline_chr_sizes$end)) #make into grange object
+ocel_genome <- feline_genome_gr #making the custom plot type
+seqlevels(ocel_genome) <- feline_chr_sizes$chr
+seqlengths(ocel_genome) <- feline_chr_sizes$end
+#making hom file into a granges file
+chr4_gr <- GRanges(
+  seqnames = paste0("chr", chr4plot$chr),
+  ranges = IRanges(start = chr4plot$start, end = chr4plot$end),
+  kb = chr4plot$kb,
+  nsnp = chr4plot$nsnp,
+  sample_id = chr4plot$sample_id)
+#creating the function to plot
+chr_4_plot <- function(sample_id, output_file = NULL) {
+  # Filter ROH data for specific individual
+  individual_roh <- chr4_gr[mcols(chr4_gr)$sample_id %in% sample_id]
+  
+  # Determine if output should go to a file
+  if (!is.null(output_file)) {
+    pdf(output_file, width = 10, height = 7)
+  }
+  #create the plot using the custom genome
+  w_kp <- plotKaryotype(genome = ocel_genome, plot.type = 1, main = paste("ROH on Chromosome 4 for", sample_id))
+  #kpAddChromosomeNames(w_kp, srt = 45, cex = 0.8) #not using this line for now
+  #plot individuals
+  kpRect(w_kp, 
+         chr = as.character(seqnames(individual_roh)), 
+         x0 = start(individual_roh), 
+         x1 = end(individual_roh),
+         y0 = 0, 
+         y1 = 1, 
+         col = "#FF000080",  # Semi-transparent red
+         border = "#FF0000",
+         r0 = 0.05, r1 = 0.95,
+         data.panel = "ideogram") #should plot directly onto the ideogram
+  # Close file if opened
+  if (!is.null(output_file)) {
+    dev.off()
+  }
+  # Return the filtered data
+  return(individual_roh)
+}
+#using the function
+unique_samples <- unique(chr4plot$sample_id)
+sanitize_filename <- function(name) {
+  gsub("[^A-Za-z0-9_]", "_", name)  # Replace anything that's not a letter, number, or underscore
+}
+dir.create("roh_plot_chr4", showWarnings = FALSE)
+for (sample_id in unique_samples) {
+  safe_id <- sanitize_filename(sample_id)
+  output_file <- paste0("roh_plot_chr4/", safe_id, "_chr4_roh_plot.pdf")
+  chr_4_plot(sample_id, output_file)
+}
 
 
 
@@ -686,7 +829,7 @@ pop_mean_f <- pop_het %>%
             Count = n(),
             StdDev = sd(F, na.rm = TRUE),
             StdError = (sd(F, na.rm = TRUE)/sqrt(n())))
-write.csv(pop_mean_he, "pop_mean_F.csv")
+write.csv(pop_mean_f, "pop_mean_F.csv")
 
 ###nucleotide diversity - population level
 #command for producing windowed pi with vcftools, done for both populations:
@@ -730,7 +873,9 @@ ggplot(chrom_pi, aes(x = factor(CHROM), y = mean_pi, fill = pop)) +
 genome_pi_weighted <- all_pi %>%
   group_by(pop) %>%
   summarise(mean_pi = weighted.mean(PI, N_VARIANTS, na.rm = TRUE),
-            n_windows = n())
+            Count = n(),
+            StdDev = sd(PI, na.rm = TRUE),
+            StdError = (sd(PI, na.rm = TRUE)/sqrt(n())))
 write.csv(genome_pi_weighted,"weighted_genome_pi.csv")
 
 
